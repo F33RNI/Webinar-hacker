@@ -9,6 +9,8 @@ import pyaudiowpatch as pyaudio
 
 PCM_MAX = 32767
 
+WAVE_FILE_EXTENSION = '.wav'
+
 
 def s_mag_to_dbfs(data_s_mag):
     """
@@ -185,7 +187,7 @@ class AudioHandler:
             if self.chunks_recorded_counter < int(self.settings['audio_recording_chunks_min']):
                 if self.wave_file is None:
                     # Start WAV file
-                    wave_name = str(int(time.time() * 1000) - self.recording_started_time) + '.wav'
+                    wave_name = str(int(time.time() * 1000) - self.recording_started_time) + WAVE_FILE_EXTENSION
                     wave_file_path = self.audio_dir + wave_name
                     logging.info('Starting audio recording with name: ' + wave_name)
                     self.wave_file = wave.open(wave_file_path, 'wb')

@@ -182,7 +182,7 @@ class Window(QMainWindow):
                         audio_or_screenshot_dir = os.path.join(recording_dir, audio_or_screenshot_dir)
                         if os.path.isdir(audio_or_screenshot_dir):
                             for file_ in os.listdir(audio_or_screenshot_dir):
-                                if str(file_).lower().endswith('.wav'):
+                                if str(file_).lower().endswith(AudioHandler.WAVE_FILE_EXTENSION):
                                     lectures.append(str(recording_dir_))
                                     self.combo_box_recordings.addItem(str(recording_dir_))
                                     break
