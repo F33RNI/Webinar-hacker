@@ -6,3 +6,4 @@ huggingsound>=0.1.6
 selenium>=4.8.0
 accelerate>=0.16.0
 opencv>=4.7.0.68
+python-docx>=0.8.11

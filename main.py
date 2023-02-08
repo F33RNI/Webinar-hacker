@@ -1,11 +1,26 @@
+"""
+ Copyright (C) 2022 Fern Lane, Webinar-hacker
+ Licensed under the GNU Affero General Public License, Version 3.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+       https://www.gnu.org/licenses/agpl-3.0.en.html
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+ IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES OR
+ OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ OTHER DEALINGS IN THE SOFTWARE.
+"""
+
 import ctypes
 import json
 import logging
 import os
 import signal
 import sys
-import time
-from importlib import reload
 
 import psutil
 from PyQt5 import uic, QtGui, QtCore
@@ -27,8 +42,6 @@ def logging_setup():
     Sets up logging format and level
     :return:
     """
-    logging.shutdown()
-    reload(logging)
     logging.basicConfig(encoding='utf-8', format='%(asctime)s %(levelname)-8s %(message)s',
                         level=LOGGING_LEVEL,
                         datefmt='%Y-%m-%d %H:%M:%S')
