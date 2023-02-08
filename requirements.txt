@@ -1,0 +1,8 @@
+psutil>=5.9.4
+PyQt5>=5.15.9
+numpy>=1.23.5
+PyAudioWPatch>=0.2.12.5
+huggingsound>=0.1.6
+selenium>=4.8.0
+accelerate>=0.16.0
+opencv>=4.7.0.68
