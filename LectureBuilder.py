@@ -241,7 +241,7 @@ class LectureBuilder:
             import enchant
 
             # Load dictionary
-            dictionary = enchant.Dict( self.settings['spell_correction_dictionary'])
+            dictionary = enchant.Dict(self.settings['spell_correction_dictionary'])
 
             # Reset progress
             self.progress_bar_set_maximum_signal.emit(len(paragraphs_copy))

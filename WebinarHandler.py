@@ -29,6 +29,7 @@ from selenium.webdriver import Keys
 from selenium.webdriver.common.by import By
 
 from qt_thread_updater import get_updater
+from webdriver_manager.chrome import ChromeDriverManager
 
 HANDLER_STAGE_LOGIN = 0
 HANDLER_STAGE_SEND_HELLO_MESSAGE = 1
@@ -97,7 +98,7 @@ class WebinarHandler:
             })
 
             # Start browser
-            self.browser = webdriver.Chrome(chrome_options=chrome_options)
+            self.browser = webdriver.Chrome(ChromeDriverManager().install(), chrome_options=chrome_options)
             self.browser.get(link)
 
     def stop_browser(self):
