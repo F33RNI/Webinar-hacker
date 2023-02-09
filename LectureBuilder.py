@@ -112,12 +112,15 @@ class LectureBuilder:
         """
         try:
             # Load package
-            logging.info('Importing SpeechRecognitionModel...')
+            logging.info('Importing SpeechRecognitionModel and torch...')
             from huggingsound import SpeechRecognitionModel
+            import torch
 
             # Load model
             if self.model is None:
-                self.model = SpeechRecognitionModel(self.settings['speech_recognition_model'])
+                device = 'cuda' if torch.cuda.is_available() else 'cpu'
+                logging.info('Using device: ' + device)
+                self.model = SpeechRecognitionModel(self.settings['speech_recognition_model'], device=device)
 
             # Transcribe audio
             logging.info('Starting transcription... Please wait')
