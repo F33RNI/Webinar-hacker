@@ -30,7 +30,7 @@ import AudioHandler
 import LectureBuilder
 import WebinarHandler
 
-WEBINAR_HACKER_VERSION = '1.2.0'
+WEBINAR_HACKER_VERSION = '1.3.0'
 
 LOGGING_LEVEL = logging.INFO
 

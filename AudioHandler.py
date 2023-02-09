@@ -14,13 +14,14 @@
  ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
  OTHER DEALINGS IN THE SOFTWARE.
 """
-
+import gc
 import logging
 import os
 import time
 import wave
 from datetime import datetime
 
+import librosa
 import numpy as np
 import pyaudiowpatch as pyaudio
 
@@ -73,6 +74,7 @@ class AudioHandler:
         self.recording_channels = 0
         self.sampling_rate = 0
         self.recording_threshold = 0
+        self.audio_samples_temp = np.empty(0, dtype=np.int16)
 
     def open_stream(self):
         # Initialize PyAudio
@@ -210,14 +212,13 @@ class AudioHandler:
                     self.wave_file = wave.open(wave_file_path, 'wb')
                     self.wave_file.setnchannels(1)  # Mono
                     self.wave_file.setsampwidth(self.py_audio.get_sample_size(pyaudio.paInt16))  # PCM16
-                    self.wave_file.setframerate(int(self.sampling_rate))
+                    self.wave_file.setframerate(int(self.settings['audio_wav_sampling_rate']))
 
-                # Convert to PCM 16
-                data_pcm = (input_data_mono * PCM_MAX).astype(np.int16)
+                    # Initialize temp buffer
+                    self.audio_samples_temp = np.empty(0, dtype=np.int16)
 
-                # Write to file
-                if self.wave_file is not None:
-                    self.wave_file.writeframesraw(data_pcm.tobytes())
+                # Write to buffer
+                self.audio_samples_temp = np.append(self.audio_samples_temp, input_data_mono)
 
                 # Increment counter
                 self.chunks_recorded_counter += 1
@@ -225,9 +226,30 @@ class AudioHandler:
             # Stop recording
             else:
                 if self.wave_file is not None:
-                    logging.info('Stopping recording')
+                    logging.info('Writing audio buffer to file...')
+
+                    # Resample buffered data
+                    self.audio_samples_temp = librosa.resample(self.audio_samples_temp, orig_sr=self.sampling_rate,
+                                                               target_sr=int(self.settings['audio_wav_sampling_rate']),
+                                                               res_type=str(self.settings['audio_wav_resampling_type']))
+
+                    # Covert to PCM
+                    self.audio_samples_temp = np.multiply(self.audio_samples_temp[: -1], PCM_MAX).astype(np.int16)
+
+                    # Write to file
+                    if self.wave_file is not None:
+                        self.wave_file.writeframesraw(self.audio_samples_temp.tobytes())
+
+                    # Clear buffer
+                    self.audio_samples_temp = np.empty(0, dtype=np.int16)
+
+                    # Close file
+                    logging.info('Closing file')
                     self.wave_file.close()
                     self.wave_file = None
+
+                    # Collect garbage
+                    gc.collect()
 
         # Continue capturing audio
         return in_data, pyaudio.paContinue
