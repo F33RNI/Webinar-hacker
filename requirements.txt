@@ -7,3 +7,7 @@ selenium>=4.8.0
 accelerate>=0.16.0
 opencv>=4.7.0.68
 python-docx>=0.8.11
+contextualSpellCheck>=0.4.3
+spacy>=3.5.0
+tensorflow>=2.11.0
+pyenchant>=3.2.2

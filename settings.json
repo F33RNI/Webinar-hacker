@@ -2,23 +2,22 @@
     "screenshot_diff_threshold_percents": 5,
     "opencv_threshold": 10,
     "word_low_probability_threshold_percents": 90,
-    "webinar_loop_interval_seconds": 4.0,
+    "webinar_loop_interval_seconds": 5.0,
     "timestamp_format": "%d_%m_%Y__%H_%M_%S",
     "audio_chunk_size": 4096,
     "audio_recording_chunks_min": 6,
+    "paragraph_audio_distance_min_milliseconds": 2000,
     "recordings_directory_name": "recordings",
     "lectures_directory_name": "lectures",
     "audio_directory_name": "audio",
     "screenshots_directory_name": "screenshots",
+    "spell_correction_dictionary": "ru_RU",
+    "punctuation_correction_model": "Model_ru_punctuator_h256_lr0.02.pcl",
+    "punctuation_correction_tokenizer": "tokenizers/punkt/russian.pickle",
     "lecture_picture_width_inches": 6.0,
-    "lecture_font_size_pt": 14,
-    "lecture_default_text_color": [
+    "lecture_font_size_pt": 12,
+    "lecture_text_color": [
         0,
-        0,
-        0
-    ],
-    "lecture_low_probability_text_color": [
-        200,
         0,
         0
     ],
@@ -29,5 +28,7 @@
     "gui_hello_message_enabled": true,
     "gui_recording_enabled": true,
     "gui_proxy": "",
-    "gui_audio_threshold_dbfs": -40
+    "gui_audio_threshold_dbfs": -40,
+    "gui_spell_correction_enabled": false,
+    "gui_punctuation_correction_enabled": true
 }

@@ -30,7 +30,7 @@ import AudioHandler
 import LectureBuilder
 import WebinarHandler
 
-WEBINAR_HACKER_VERSION = '1.0.0'
+WEBINAR_HACKER_VERSION = '1.2.0'
 
 LOGGING_LEVEL = logging.INFO
 
@@ -100,6 +100,9 @@ class Window(QMainWindow):
     stop_browser_and_recording = QtCore.pyqtSignal()  # QtCore.Signal()
     elements_set_enabled_signal = QtCore.pyqtSignal(bool)  # QtCore.Signal(bool)
     progress_bar_audio_signal = QtCore.pyqtSignal(int)  # QtCore.Signal(int)
+    progress_bar_set_value_signal = QtCore.pyqtSignal(int)  # QtCore.Signal(int)
+    progress_bar_set_maximum_signal = QtCore.pyqtSignal(int)  # QtCore.Signal(int)
+    lecture_building_done_signal = QtCore.pyqtSignal(str)  # QtCore.Signal(str)
 
     def __init__(self, settings_):
         super(Window, self).__init__()
@@ -113,12 +116,18 @@ class Window(QMainWindow):
         self.stop_browser_and_recording.connect(self.stop_browser)
         self.elements_set_enabled_signal.connect(self.elements_set_enabled)
         self.progress_bar_audio_signal.connect(self.progressBar_audio.setValue)
+        self.progress_bar_set_value_signal.connect(self.progressBar.setValue)
+        self.progress_bar_set_maximum_signal.connect(self.progressBar.setMaximum)
+        self.lecture_building_done_signal.connect(self.lecture_building_done)
 
         # Initialize classes
         self.audio_handler = AudioHandler.AudioHandler(self.settings, self.progress_bar_audio_signal)
         self.webinar_handler = WebinarHandler.WebinarHandler(self.audio_handler, self.stop_browser_and_recording,
                                                              self.preview_label)
-        self.lecture_builder = LectureBuilder.LectureBuilder(self.settings, self.elements_set_enabled_signal)
+        self.lecture_builder = LectureBuilder.LectureBuilder(self.settings, self.elements_set_enabled_signal,
+                                                             self.progress_bar_set_value_signal,
+                                                             self.progress_bar_set_maximum_signal,
+                                                             self.lecture_building_done_signal)
 
         # Set window title
         self.setWindowTitle('Webinar hacker ' + WEBINAR_HACKER_VERSION)
@@ -144,6 +153,8 @@ class Window(QMainWindow):
         self.line_edit_proxy.setText(str(self.settings['gui_proxy']))
         self.slider_audio_threshold.setValue(int(self.settings['gui_audio_threshold_dbfs']))
         self.label_audio_threshold.setText(str(int(self.settings['gui_audio_threshold_dbfs'])) + ' dBFS')
+        self.spell_correction.setChecked(self.settings['gui_spell_correction_enabled'])
+        self.punctuation_correction.setChecked(self.settings['gui_punctuation_correction_enabled'])
 
         # Connect settings updater
         self.line_edit_link.textChanged.connect(self.update_settings)
@@ -153,6 +164,8 @@ class Window(QMainWindow):
         self.check_box_recording.clicked.connect(self.update_settings)
         self.line_edit_proxy.textChanged.connect(self.update_settings)
         self.slider_audio_threshold.valueChanged.connect(self.update_settings)
+        self.spell_correction.clicked.connect(self.update_settings)
+        self.punctuation_correction.clicked.connect(self.update_settings)
 
         # Refresh list of lectures
         self.lectures_refresh()
@@ -171,9 +184,21 @@ class Window(QMainWindow):
         self.settings['gui_proxy'] = str(str(self.line_edit_proxy.text()))
         self.settings['gui_audio_threshold_dbfs'] = int(self.slider_audio_threshold.value())
         self.label_audio_threshold.setText(str(int(self.slider_audio_threshold.value())) + ' dBFS')
+        self.settings['gui_spell_correction_enabled'] = self.spell_correction.isChecked()
+        self.settings['gui_punctuation_correction_enabled'] = self.punctuation_correction.isChecked()
 
         # Save to file
         save_json(SETTINGS_FILE, self.settings)
+
+    def lecture_building_done(self, lecture_name: str):
+        """
+        Shows info about saved lecture
+        :return:
+        """
+        lectures_directory = str(self.settings['lectures_directory_name'])
+        lecture_file = lecture_name + '.docx'
+        QMessageBox.information(self, 'Done!', 'The lecture was successfully built!\nFile: ' +
+                                os.path.join(lectures_directory, lecture_file))
 
     def lectures_refresh(self):
         """
@@ -182,7 +207,6 @@ class Window(QMainWindow):
         """
         logging.info('Refreshing list of lectures...')
         lectures = []
-        self.combo_box_recordings.clear()
         recordings_dir = str(self.settings['recordings_directory_name']) + '/'
         if os.path.exists(recordings_dir):
             # List all dirs in recordings directory
@@ -197,10 +221,15 @@ class Window(QMainWindow):
                             for file_ in os.listdir(audio_or_screenshot_dir):
                                 if str(file_).lower().endswith(AudioHandler.WAVE_FILE_EXTENSION):
                                     lectures.append(str(recording_dir_))
-                                    self.combo_box_recordings.addItem(str(recording_dir_))
                                     break
 
+        # Sort lectures
+        lectures.sort(reverse=True)
+
+        # Add to combobox and log list of lectures
         logging.info('Available lectures: ' + str(lectures))
+        self.combo_box_recordings.clear()
+        self.combo_box_recordings.addItems(lectures)
 
     def lecture_build(self):
         """
@@ -219,7 +248,7 @@ class Window(QMainWindow):
 
     def start_browser(self):
         """
-        Opens browser and starts recording
+        Asks for confirmation and opens browser and starts recording
         :return:
         """
         link = str(self.settings['gui_link']).strip()
@@ -231,18 +260,25 @@ class Window(QMainWindow):
         # Check link and username
         if len(link) > 0:
             if len(user_name) > 0:
-                # Open audio stream
-                if self.settings['gui_recording_enabled']:
-                    self.audio_handler.open_stream()
+                # Ask for confiramtion
+                is_recording_enabled = self.settings['gui_recording_enabled']
+                recording_state_str = 'enabled' if is_recording_enabled else 'disabled'
+                warning_msg = 'Event recording ' + recording_state_str + '! Do you want to continue?'
+                reply = QMessageBox.warning(self, 'Recording ' + recording_state_str, warning_msg, QMessageBox.Yes,
+                                            QMessageBox.No)
+                if reply == QMessageBox.Yes:
+                    # Open audio stream
+                    if self.settings['gui_recording_enabled']:
+                        self.audio_handler.open_stream()
 
-                # Disable form elements and start
-                self.elements_set_enabled(False, True)
-                self.webinar_handler.start_browser(link, proxy)
-                self.webinar_handler.start_handler(user_name, hello_message,
-                                                   float(self.settings['webinar_loop_interval_seconds']),
-                                                   self.settings['gui_recording_enabled'],
-                                                   int(self.settings['screenshot_diff_threshold_percents']),
-                                                   int(self.settings['opencv_threshold']))
+                    # Disable form elements and start
+                    self.elements_set_enabled(False, True)
+                    self.webinar_handler.start_browser(link, proxy)
+                    self.webinar_handler.start_handler(user_name, hello_message,
+                                                       float(self.settings['webinar_loop_interval_seconds']),
+                                                       self.settings['gui_recording_enabled'],
+                                                       int(self.settings['screenshot_diff_threshold_percents']),
+                                                       int(self.settings['opencv_threshold']))
             else:
                 QMessageBox.warning(self, 'No user name', 'Please type user name to connect with!')
         else:
@@ -289,15 +325,9 @@ class Window(QMainWindow):
         self.combo_box_recordings.setEnabled(enabled)
         self.btn_refresh.setEnabled(enabled)
         self.btn_build.setEnabled(enabled)
-        self.label_audio_threshold.setEnabled(True if browser else enabled)
-
-        # Enable progress bar in lecture building mode
-        if browser or enabled:
-            self.progressBar.setMinimum(0)
-            self.progressBar.setMaximum(100)
-        else:
-            self.progressBar.setMinimum(0)
-            self.progressBar.setMaximum(0)
+        self.slider_audio_threshold.setEnabled(True if browser else enabled)
+        self.spell_correction.setEnabled(enabled)
+        self.punctuation_correction.setEnabled(enabled)
 
     def closeEvent(self, event):
         """

@@ -19,17 +19,21 @@ import logging
 import os
 import threading
 
+import numpy as np
 from docx import Document
-from docx.shared import Inches, Pt, RGBColor
-from huggingsound import SpeechRecognitionModel
+from docx.shared import Inches, RGBColor
 
 from WebinarHandler import SCREENSHOT_EXTENSION
 
 
 class LectureBuilder:
-    def __init__(self, settings, elements_set_enabled_signal):
+    def __init__(self, settings, elements_set_enabled_signal, progress_bar_set_value_signal,
+                 progress_bar_set_maximum_signal, lecture_building_done_signal):
         self.settings = settings
         self.elements_set_enabled_signal = elements_set_enabled_signal
+        self.progress_bar_set_value_signal = progress_bar_set_value_signal
+        self.progress_bar_set_maximum_signal = progress_bar_set_maximum_signal
+        self.lecture_building_done_signal = lecture_building_done_signal
 
         self.audio_files = []
         self.screenshots = []
@@ -106,149 +110,328 @@ class LectureBuilder:
         Transcribes audio and build lecture
         :return:
         """
-        # Load model
-        if self.model is None:
-            self.model = SpeechRecognitionModel(self.settings['speech_recognition_model'])
+        try:
+            # Load package
+            logging.info('Importing SpeechRecognitionModel...')
+            from huggingsound import SpeechRecognitionModel
 
-        # Transcribe audio
-        logging.info('Starting transcription... Please wait')
-        audio_files_to_transcribe = []
-        for audio_file_ in self.audio_files:
-            audio_files_to_transcribe.append(audio_file_[1])
-        transcriptions = self.model.transcribe(audio_files_to_transcribe)
+            # Load model
+            if self.model is None:
+                self.model = SpeechRecognitionModel(self.settings['speech_recognition_model'])
 
-        # Check transcription
-        if len(transcriptions) > 0:
-            try:
-                paragraphs = []
-                paragraphs_time_stamps = []
-                paragraphs_probabilities = []
+            # Transcribe audio
+            logging.info('Starting transcription... Please wait')
+            transcriptions = []
+            self.progress_bar_set_maximum_signal.emit(len(self.audio_files))
+            for audio_file_n in range(len(self.audio_files)):
+                # Set progress
+                self.progress_bar_set_value_signal.emit(audio_file_n + 1)
 
+                # Transcribe
+                audio_file_ = self.audio_files[audio_file_n]
+                transcriptions.append(self.model.transcribe([audio_file_[1]]))
+
+            # Check transcription
+            if len(transcriptions) > 0:
+                # Build words with timestamps
+                words = []
+                word_time_stamps = []
                 for i in range(len(transcriptions)):
-                    transcription = transcriptions[i]['transcription']
-                    start_timestamps = transcriptions[i]['start_timestamps']
-                    end_timestamps = transcriptions[i]['end_timestamps']
-                    probabilities = transcriptions[i]['probabilities']
+                    # Extract data
+                    transcription = transcriptions[i][0]['transcription']
+                    end_timestamps = transcriptions[i][0]['end_timestamps']
                     timestamp_offset = self.audio_files[i][0]
 
                     # Check length
-                    if len(transcription) == len(start_timestamps) == len(end_timestamps) == len(probabilities):
-                        words = []
-                        word_time_stamps = []
-                        word_probabilities = []
-
+                    if transcription is not None and end_timestamps is not None and \
+                            len(transcription) == len(end_timestamps):
                         # Split into words, end timestamps and probabilities
                         word = ''
-                        word_probability = 0
                         for char_n in range(len(transcription)):
                             char_ = transcription[char_n]
                             # Space found -> make word
                             if char_ == ' ' and len(word) > 0:
-                                words.append(word)
-                                word_time_stamps.append(end_timestamps[char_n] + timestamp_offset)
-                                word_probabilities.append(int((word_probability / len(word)) * 100))
-                                word = ''
-                                word_probability = 0
+                                if len(word.strip()) > 0:
+                                    words.append(word)
+                                    word_time_stamps.append(end_timestamps[char_n] + timestamp_offset)
+                                    word = ''
 
                             # Build word
                             else:
                                 word += char_
-                                word_probability += probabilities[char_n]
 
                         # Add last word
                         if len(word) > 0:
-                            words.append(word)
-                            word_time_stamps.append(end_timestamps[-1] + timestamp_offset)
-                            word_probabilities.append(int((word_probability / len(word)) * 100))
-
-                        # Append to paragraphs
-                        paragraphs.append(words)
-                        paragraphs_time_stamps.append(word_time_stamps)
-                        paragraphs_probabilities.append(word_probabilities)
+                            if len(word.strip()) > 0:
+                                words.append(word)
+                                word_time_stamps.append(end_timestamps[-1] + timestamp_offset)
                     else:
-                        logging.warning('Transcription n' + str(i + 1) + ' result length are not equal!')
+                        logging.warning('Error transcribing ' + str(self.audio_files[i][1]))
 
-                # Log number of words
-                words_n = 0
-                for words_ in paragraphs:
-                    for _ in words_:
-                        words_n += 1
-                logging.info('Transcription result words: ' + str(words_n))
+                # Build paragraphs
+                paragraphs = []
+                paragraphs_time_stamps = []
+                timestamp_last = word_time_stamps[0]
+                paragraph_ = []
+                for word_n in range(len(words)):
+                    # Get word timestamp
+                    timestamp_ = word_time_stamps[word_n]
 
-                # Create docx document
-                logging.info('Writing to docx document...')
-                document = Document()
-                document.add_heading(self.lecture_name, 0)
+                    # If word is too far from previous word
+                    if timestamp_ - timestamp_last >= int(self.settings['paragraph_audio_distance_min_milliseconds']):
+                        # Append to paragraphs
+                        paragraphs.append(paragraph_)
+                        paragraphs_time_stamps.append(timestamp_last)
 
-                # First screenshot
-                current_screenshot = None
+                        # Reset paragraph_
+                        paragraph_ = []
+
+                    # Append current word to paragraph
+                    paragraph_.append(words[word_n])
+
+                    # Store timestamp_ for next cycle
+                    timestamp_last = timestamp_
+
+                # Remove empty paragraphs
+                paragraphs = [x for x in paragraphs if x]
+
+                # Log result
+                logging.info('Transcription result words: ' + str(len(words)) + ', paragraphs: ' + str(len(paragraphs)))
+
+                # Apply spell correction
+                if self.settings['gui_spell_correction_enabled']:
+                    paragraphs = self.fix_spelling(paragraphs)
+
+                # Apply punctuation
+                if self.settings['gui_punctuation_correction_enabled']:
+                    paragraphs = self.punctuate(paragraphs)
+
+                # Build docx
+                self.write_to_docx(paragraphs, paragraphs_time_stamps)
+
+                # Done
+                self.lecture_building_done_signal.emit(self.lecture_name)
+
+        # Error building lecture
+        except Exception as e:
+            logging.error(e, exc_info=True)
+
+        # Reset progress
+        self.progress_bar_set_value_signal.emit(0)
+
+        # Enable gui elements
+        self.elements_set_enabled_signal.emit(True)
+
+    def fix_spelling(self, paragraphs: list):
+        """
+        Fixes spelling of each paragraph
+        :param paragraphs:
+        :return:
+        """
+        logging.info('Fixing spelling ...')
+        # Make a copy
+        paragraphs_copy = paragraphs.copy()
+        paragraphs = []
+
+        try:
+            # Import packages
+            import enchant
+
+            # Load dictionary
+            dictionary = enchant.Dict( self.settings['spell_correction_dictionary'])
+
+            # Reset progress
+            self.progress_bar_set_maximum_signal.emit(len(paragraphs_copy))
+            self.progress_bar_set_value_signal.emit(0)
+
+            # List all paragraphs
+            for paragraph_n in range(len(paragraphs_copy)):
+                # Set progress
+                self.progress_bar_set_value_signal.emit(paragraph_n + 1)
+
+                # Make sure every word is one word
+                words_raw = (' '.join(paragraphs_copy[paragraph_n])).split(' ')
+
+                words_corrected = []
+                for word in words_raw:
+                    # Check word length
+                    if word is not None and len(word.strip()) > 0:
+                        try:
+                            # Check and correct word
+                            if not dictionary.check(word.strip()):
+                                replacements = dictionary.suggest(word.strip())
+                                if replacements is not None and len(replacements) > 0:
+                                    word = replacements[0]
+
+                            # Append corrected word
+                            words_corrected.append(word.strip())
+                        except Exception as e:
+                            logging.warning(e)
+
+                # Append paragraph
+                if len(words_corrected) > 0:
+                    paragraphs.append(words_corrected)
+
+            # Return sentences with fixed spelling
+            return paragraphs
+
+        # Error fixing spelling
+        except Exception as e:
+            # Log error
+            logging.error(e, exc_info=True)
+
+            # Return unchanged list
+            return paragraphs_copy
+
+    def punctuate(self, paragraphs: list):
+        """
+        Creates punctuation in given paragraphs
+        :param paragraphs:
+        :return:
+        """
+        logging.info('Adding punctuation...')
+        # Make a copy
+        paragraphs_copy = paragraphs.copy()
+        paragraphs = []
+
+        try:
+            # Import packages
+            logging.info('Importing packages...')
+            import nltk.data
+            import ru_punct.main
+            import ru_punct.data
+            import ru_punct.models
+            import ru_punct.playing_with_model
+
+            # Download punkt
+            nltk.download('punkt')
+
+            # Load vocabulary
+            vocab_len = len(ru_punct.data.read_vocabulary(ru_punct.data.WORD_VOCAB_FILE))
+            x_len = vocab_len if vocab_len < ru_punct.data.MAX_WORD_VOCABULARY_SIZE else \
+                ru_punct.data.MAX_WORD_VOCABULARY_SIZE + ru_punct.data.MIN_WORD_COUNT_IN_VOCAB
+
+            x = np.ones((x_len, ru_punct.main.MINIBATCH_SIZE)).astype(int)
+
+            logging.info('Loading model parameters...')
+            net, _ = ru_punct.models.load(self.settings['punctuation_correction_model'], x)
+
+            logging.info('Building model...')
+            word_vocabulary = net.x_vocabulary
+            punctuation_vocabulary = net.y_vocabulary
+
+            reverse_punctuation_vocabulary = {v: k for k, v in punctuation_vocabulary.items()}
+            for key, value in reverse_punctuation_vocabulary.items():
+                if value == '.PERIOD':
+                    reverse_punctuation_vocabulary[key] = '.'
+                if value == ',COMMA':
+                    reverse_punctuation_vocabulary[key] = ','
+                if value == '?QUESTIONMARK':
+                    reverse_punctuation_vocabulary[key] = '?'
+
+            # Reset progress
+            self.progress_bar_set_maximum_signal.emit(len(paragraphs_copy))
+            self.progress_bar_set_value_signal.emit(0)
+
+            # List all paragraphs
+            for paragraph_n in range(len(paragraphs_copy)):
+                # Set progress
+                self.progress_bar_set_value_signal.emit(paragraph_n + 1)
+
+                words_ = paragraphs_copy[paragraph_n]
+                text_with_punct = ru_punct.playing_with_model.restore(words_ + [ru_punct.data.END], word_vocabulary,
+                                                                      reverse_punctuation_vocabulary, net)
+
+                punkt_tokenizer = nltk.data.load(self.settings['punctuation_correction_tokenizer'])
+                sentences = punkt_tokenizer.tokenize(text_with_punct)
+                sentences = [sent.capitalize() for sent in sentences]
+
+                # Append to paragraphs
+                paragraphs.append(sentences)
+
+            # Return sentences with punctuation
+            return paragraphs
+
+        # Error correcting punctuation
+        except Exception as e:
+            # Log error
+            logging.error(e, exc_info=True)
+
+            # Return unchanged list
+            return paragraphs_copy
+
+    def write_to_docx(self, paragraphs: list, paragraphs_time_stamps: list):
+        """
+        Finally writes paragraphs and screenshots to docx document
+        :param paragraphs:
+        :param paragraphs_time_stamps:
+        :return:
+        """
+        # Create docx document
+        logging.info('Writing to docx document...')
+        document = Document()
+        document.add_heading(self.lecture_name, 0)
+
+        # First screenshot
+        current_screenshot = None
+        if len(self.screenshots) > 0:
+            current_screenshot = self.screenshots.pop()
+
+        # Reset progress
+        self.progress_bar_set_maximum_signal.emit(len(paragraphs))
+        self.progress_bar_set_value_signal.emit(0)
+
+        # List all paragraphs
+        for paragraph_n in range(len(paragraphs)):
+            # Set progress
+            self.progress_bar_set_value_signal.emit(paragraph_n + 1)
+
+            # Unpack data
+            paragraph_ = ' '.join(paragraphs[paragraph_n])
+            paragraph_time_stamp = paragraphs_time_stamps[paragraph_n]
+
+            # Add screenshots
+            while current_screenshot is not None and paragraph_time_stamp >= current_screenshot[0]:
+                # New paragraph
+                document.add_paragraph('')
+
+                # Append screenshot
+                document.add_picture(str(current_screenshot[1]).replace('\\', '/'), width=Inches(
+                    float(self.settings['lecture_picture_width_inches'])))
+
+                # Get next screenshot
                 if len(self.screenshots) > 0:
                     current_screenshot = self.screenshots.pop()
+                else:
+                    current_screenshot = None
 
-                # List all paragraphs
-                for paragraph_n in range(len(paragraphs)):
-                    logging.info('Writing ' + str(paragraph_n + 1) + ' paragraph')
+            # Add paragraph
+            document_run = document.add_paragraph().add_run(paragraph_)
 
-                    # Create initial paragraph
-                    paragraph = document.add_paragraph('')
+            # Add color
+            text_colors = self.settings['lecture_text_color']
+            document_run.font.color.rgb = RGBColor(int(text_colors[0]),
+                                                   int(text_colors[1]),
+                                                   int(text_colors[2]))
 
-                    # Unpack data
-                    words = paragraphs[paragraph_n]
-                    word_time_stamps = paragraphs_time_stamps[paragraph_n]
-                    word_probabilities = paragraphs_probabilities[paragraph_n]
+        # Add all remaining screenshots
+        while len(self.screenshots) > 0:
+            # Pop screenshot
+            current_screenshot = self.screenshots.pop()
 
-                    # Add all words and screenshots
-                    for word_n in range(len(words)):
-                        word_ = words[word_n]
-                        current_timestamp = word_time_stamps[word_n]
-                        probability = word_probabilities[word_n]
+            # New paragraph
+            document.add_paragraph('')
 
-                        # Append word
-                        run_ = paragraph.add_run(word_ + ' ')
+            # Append screenshot
+            document.add_picture(str(current_screenshot[1]).replace('\\', '/'), width=Inches(
+                float(self.settings['lecture_picture_width_inches'])))
 
-                        # Set font size
-                        run_.font.size = Pt(int(self.settings['lecture_font_size_pt']))
+        # Create lectures directory
+        lectures_dir = str(self.settings['lectures_directory_name']) + '/'
+        if not os.path.exists(lectures_dir):
+            os.makedirs(lectures_dir)
 
-                        # Show low probability words
-                        if probability <= int(self.settings['word_low_probability_threshold_percents']):
-                            text_colors = self.settings['lecture_low_probability_text_color']
-                            run_.font.color.rgb = RGBColor(int(text_colors[0]),
-                                                           int(text_colors[1]),
-                                                           int(text_colors[2]))
-                        else:
-                            text_colors = self.settings['lecture_default_text_color']
-                            run_.font.color.rgb = RGBColor(int(text_colors[0]),
-                                                           int(text_colors[1]),
-                                                           int(text_colors[2]))
-
-                        # Check screenshot
-                        if current_screenshot is not None and current_timestamp >= current_screenshot[0]:
-                            # New paragraph
-                            paragraph = document.add_paragraph('')
-
-                            # Append screenshot
-                            document.add_picture(str(current_screenshot[1]).replace('\\', '/'), width=Inches(
-                                float(self.settings['lecture_picture_width_inches'])))
-
-                            # Get next screenshot
-                            if len(self.screenshots) > 0:
-                                current_screenshot = self.screenshots.pop()
-                            else:
-                                current_screenshot = None
-
-                # Create lectures directory
-                lectures_dir = str(self.settings['lectures_directory_name']) + '/'
-                if not os.path.exists(lectures_dir):
-                    os.makedirs(lectures_dir)
-
-                # Save lecture
-                lecture_file = lectures_dir + self.lecture_name + '.docx'
-                logging.info('Saving lecture as: ' + lecture_file)
-                document.save(lecture_file)
-
-            # Error building lecture
-            except Exception as e:
-                logging.error(e, exc_info=True)
-
-            # Enable gui elements
-            self.elements_set_enabled_signal.emit(True)
+        # Save lecture
+        lecture_file = lectures_dir + self.lecture_name + '.docx'
+        logging.info('Saving lecture as: ' + lecture_file)
+        document.save(lecture_file)
