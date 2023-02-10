@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
+ <author>Fern Lane</author>
  <class>MainWindow</class>
  <widget class="QMainWindow" name="MainWindow">
   <property name="geometry">
@@ -7,7 +8,7 @@
     <x>0</x>
     <y>0</y>
     <width>276</width>
-    <height>670</height>
+    <height>666</height>
    </rect>
   </property>
   <property name="font">
@@ -148,7 +149,7 @@
        </size>
       </property>
       <property name="styleSheet">
-       <string notr="true">border: 1px solid black;</string>
+       <string notr="true">border: 1px solid #5c5c5c;</string>
       </property>
       <property name="text">
        <string>No image</string>

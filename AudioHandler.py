@@ -29,8 +29,15 @@ PCM_MAX = 32767
 
 WAVE_FILE_EXTENSION = '.wav'
 
-NOT_RECORDING_STYLE_SHEET = 'background-color: transparent; border: none;'
-RECORDING_STYLE_SHEET = 'background-color: red; border: 1px solid black;'
+NOT_RECORDING_STYLE_SHEET = '''background-color: transparent;
+color: #454544;
+font-weight: bold;
+font-size: 13px;'''
+
+RECORDING_STYLE_SHEET = '''background-color: #d95555;
+color: #454544;
+font-weight: bold;
+font-size: 13px;'''
 
 
 def s_mag_to_dbfs(data_s_mag):

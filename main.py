@@ -30,11 +30,13 @@ import AudioHandler
 import LectureBuilder
 import WebinarHandler
 
-WEBINAR_HACKER_VERSION = 'beta_1.3.3'
+WEBINAR_HACKER_VERSION = 'beta_1.3.4'
 
 LOGGING_LEVEL = logging.INFO
 
 SETTINGS_FILE = 'settings.json'
+
+STYLESHEET_FILE = 'stylesheet/Toolery.qss'
 
 
 def logging_setup():
@@ -112,6 +114,9 @@ class Window(QMainWindow):
 
         # Load GUI from file
         uic.loadUi('gui.ui', self)
+
+        with open(STYLESHEET_FILE, 'r') as stylesheet_file:
+            self.setStyleSheet(stylesheet_file.read())
 
         # Connect signals
         self.stop_browser_and_recording.connect(self.stop_browser)
@@ -263,10 +268,10 @@ class Window(QMainWindow):
         # Check link and username
         if len(link) > 0:
             if len(user_name) > 0:
-                # Ask for confiramtion
+                # Ask for confirmation
                 is_recording_enabled = self.settings['gui_recording_enabled']
-                recording_state_str = 'enabled' if is_recording_enabled else 'disabled'
-                warning_msg = 'Event recording ' + recording_state_str + '! Do you want to continue?'
+                recording_state_str = 'ENABLED' if is_recording_enabled else 'DISABLED'
+                warning_msg = 'Event recording ' + recording_state_str + '!\nDo you want to continue?'
                 reply = QMessageBox.warning(self, 'Recording ' + recording_state_str, warning_msg, QMessageBox.Yes,
                                             QMessageBox.No)
                 if reply == QMessageBox.Yes:
