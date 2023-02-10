@@ -30,7 +30,7 @@ import AudioHandler
 import LectureBuilder
 import WebinarHandler
 
-WEBINAR_HACKER_VERSION = '1.3.0'
+WEBINAR_HACKER_VERSION = '1.3.1'
 
 LOGGING_LEVEL = logging.INFO
 
@@ -103,6 +103,7 @@ class Window(QMainWindow):
     progress_bar_set_value_signal = QtCore.pyqtSignal(int)  # QtCore.Signal(int)
     progress_bar_set_maximum_signal = QtCore.pyqtSignal(int)  # QtCore.Signal(int)
     lecture_building_done_signal = QtCore.pyqtSignal(str)  # QtCore.Signal(str)
+    label_rec_set_stylesheet_signal = QtCore.pyqtSignal(str)  # QtCore.Signal(str)
 
     def __init__(self, settings_):
         super(Window, self).__init__()
@@ -119,9 +120,11 @@ class Window(QMainWindow):
         self.progress_bar_set_value_signal.connect(self.progressBar.setValue)
         self.progress_bar_set_maximum_signal.connect(self.progressBar.setMaximum)
         self.lecture_building_done_signal.connect(self.lecture_building_done)
+        self.label_rec_set_stylesheet_signal.connect(self.label_rec.setStyleSheet)
 
         # Initialize classes
-        self.audio_handler = AudioHandler.AudioHandler(self.settings, self.progress_bar_audio_signal)
+        self.audio_handler = AudioHandler.AudioHandler(self.settings, self.progress_bar_audio_signal,
+                                                       self.label_rec_set_stylesheet_signal)
         self.webinar_handler = WebinarHandler.WebinarHandler(self.audio_handler, self.stop_browser_and_recording,
                                                              self.preview_label)
         self.lecture_builder = LectureBuilder.LectureBuilder(self.settings, self.elements_set_enabled_signal,

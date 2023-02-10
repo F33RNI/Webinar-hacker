@@ -29,6 +29,9 @@ PCM_MAX = 32767
 
 WAVE_FILE_EXTENSION = '.wav'
 
+NOT_RECORDING_STYLE_SHEET = 'background-color: transparent; border: none;'
+RECORDING_STYLE_SHEET = 'background-color: red; border: 1px solid black;'
+
 
 def s_mag_to_dbfs(data_s_mag):
     """
@@ -57,9 +60,10 @@ def dbfs_to_s_mag(data_dbfs):
 
 
 class AudioHandler:
-    def __init__(self, settings, progress_bar_audio_signal):
+    def __init__(self, settings, progress_bar_audio_signal, label_rec_set_stylesheet_signal):
         self.settings = settings
         self.progress_bar_audio_signal = progress_bar_audio_signal
+        self.label_rec_set_stylesheet_signal = label_rec_set_stylesheet_signal
 
         self.py_audio = None
         self.recording_stream = None
@@ -104,6 +108,9 @@ class AudioHandler:
                                                    rate=self.sampling_rate,
                                                    input=True,
                                                    stream_callback=self.callback)
+
+        # Reset label background
+        self.label_rec_set_stylesheet_signal.emit(NOT_RECORDING_STYLE_SHEET)
 
     def close_stream(self):
         """
@@ -173,6 +180,9 @@ class AudioHandler:
             # Reset audio volume progress bar
             self.progress_bar_audio_signal.emit(-60)
 
+            # Reset label background
+            self.label_rec_set_stylesheet_signal.emit(NOT_RECORDING_STYLE_SHEET)
+
     def callback(self, in_data, frame_count, time_info, status):
         # Just skip all if not recording
         if self.is_recording:
@@ -217,6 +227,9 @@ class AudioHandler:
                     # Initialize temp buffer
                     self.audio_samples_temp = np.empty(0, dtype=np.int16)
 
+                    # Set label background
+                    self.label_rec_set_stylesheet_signal.emit(RECORDING_STYLE_SHEET)
+
                 # Write to buffer
                 self.audio_samples_temp = np.append(self.audio_samples_temp, input_data_mono)
 
@@ -250,6 +263,9 @@ class AudioHandler:
 
                     # Collect garbage
                     gc.collect()
+
+                    # Set label background
+                    self.label_rec_set_stylesheet_signal.emit(NOT_RECORDING_STYLE_SHEET)
 
         # Continue capturing audio
         return in_data, pyaudio.paContinue
