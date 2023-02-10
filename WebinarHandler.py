@@ -175,6 +175,7 @@ class WebinarHandler:
 
                 # Finished or closed
                 if browser_closed or \
+                        'AfterMeetingScreenContent' in self.browser.page_source or \
                         'event_stopped' in self.browser.page_source:
                     logging.warning('Event finished or browser closed!')
                     if self.browser is not None:
