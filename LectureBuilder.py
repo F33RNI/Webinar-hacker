@@ -25,6 +25,8 @@ from docx.shared import Inches, RGBColor
 
 from WebinarHandler import SCREENSHOT_EXTENSION
 
+WAVE_FILE_SIZE_MIN_BYTES = 100
+
 
 class LectureBuilder:
     def __init__(self, settings, elements_set_enabled_signal, progress_bar_set_value_signal,
@@ -68,7 +70,12 @@ class LectureBuilder:
                             pass
                         if time_diff_int >= 0:
                             logging.info('Found audio file: ' + str(file_) + ' with time: ' + str(time_diff_int))
-                            self.audio_files.append([time_diff_int, str(file_)])
+
+                            # Check file size
+                            if os.path.getsize(str(file_)) < WAVE_FILE_SIZE_MIN_BYTES:
+                                logging.warning('Size of file ' + str(file_) + ' too small! Ignoring it')
+                            else:
+                                self.audio_files.append([time_diff_int, str(file_)])
 
         # Find screenshots
         screenshots_dir = lecture_directory + '/' + str(self.settings['screenshots_directory_name']) + '/'
