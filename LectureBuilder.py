@@ -202,6 +202,11 @@ class LectureBuilder:
                     # Store timestamp_ for next cycle
                     timestamp_last = timestamp_
 
+                # Append last paragraph
+                if len(paragraph_) > 0:
+                    paragraphs.append(paragraph_)
+                    paragraphs_time_stamps.append(timestamp_last)
+
                 # Remove empty paragraphs
                 paragraphs = [x for x in paragraphs if x]
 
@@ -227,6 +232,7 @@ class LectureBuilder:
             logging.error(e, exc_info=True)
 
         # Reset progress
+        self.progress_bar_set_maximum_signal.emit(100)
         self.progress_bar_set_value_signal.emit(0)
 
         # Enable gui elements
