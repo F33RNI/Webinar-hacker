@@ -39,7 +39,8 @@ INCLUDE_FILES = ['icon.png',
                  'LICENSE',
                  'Model_ru_punctuator_h256_lr0.02.pcl',
                  'settings.json',
-                 'ru_punct']
+                 'ru_punct',
+                 'stylesheet']
 
 # Files and folders to exclude from final build directory (dist/MAIN_FILE folder)
 EXCLUDE_FILES = []
