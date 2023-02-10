@@ -7,7 +7,7 @@
     "audio_chunk_size": 4096,
     "audio_recording_chunks_min": 6,
     "audio_wav_sampling_rate": 16000,
-	"audio_wav_resampling_type": "soxr_mq",
+    "audio_wav_resampling_type": "soxr_mq",
     "paragraph_audio_distance_min_milliseconds": 2000,
     "recordings_directory_name": "recordings",
     "lectures_directory_name": "lectures",
@@ -31,6 +31,6 @@
     "gui_recording_enabled": true,
     "gui_proxy": "",
     "gui_audio_threshold_dbfs": -40,
-    "gui_spell_correction_enabled": false,
+    "gui_spell_correction_enabled": true,
     "gui_punctuation_correction_enabled": true
 }
