@@ -8,7 +8,7 @@
     <x>0</x>
     <y>0</y>
     <width>276</width>
-    <height>666</height>
+    <height>704</height>
    </rect>
   </property>
   <property name="font">
@@ -66,16 +66,46 @@
      </layout>
     </item>
     <item>
-     <layout class="QHBoxLayout" name="horizontalLayout_3">
+     <widget class="Line" name="line_2">
+      <property name="orientation">
+       <enum>Qt::Horizontal</enum>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <layout class="QVBoxLayout" name="layout_links">
       <item>
        <widget class="QLabel" name="label_3">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
         <property name="text">
-         <string>Webinar link:</string>
+         <string>Webinar links:</string>
         </property>
        </widget>
       </item>
       <item>
-       <widget class="QLineEdit" name="line_edit_link"/>
+       <layout class="QHBoxLayout" name="horizontalLayout_3">
+        <item>
+         <widget class="QLineEdit" name="line_edit_link"/>
+        </item>
+        <item>
+         <widget class="QPushButton" name="btn_link_add">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="text">
+           <string>+</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
       </item>
      </layout>
     </item>
@@ -256,7 +286,7 @@
     <item>
      <widget class="Line" name="line">
       <property name="lineWidth">
-       <number>2</number>
+       <number>1</number>
       </property>
       <property name="orientation">
        <enum>Qt::Horizontal</enum>

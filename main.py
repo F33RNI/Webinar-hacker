@@ -24,13 +24,14 @@ import sys
 
 import psutil
 from PyQt5 import uic, QtGui, QtCore
-from PyQt5.QtWidgets import QApplication, QMainWindow, QMessageBox
+from PyQt5.QtWidgets import QApplication, QMainWindow, QMessageBox, QVBoxLayout, QLineEdit, QPushButton, QWidget, \
+    QHBoxLayout
 
 import AudioHandler
 import LectureBuilder
 import WebinarHandler
 
-WEBINAR_HACKER_VERSION = 'beta_1.3.5'
+WEBINAR_HACKER_VERSION = 'beta_1.4.0'
 
 LOGGING_LEVEL = logging.INFO
 
@@ -119,7 +120,7 @@ class Window(QMainWindow):
             self.setStyleSheet(stylesheet_file.read())
 
         # Connect signals
-        self.stop_browser_and_recording.connect(self.stop_browser)
+        self.stop_browser_and_recording.connect(lambda: self.stop_browser(False))
         self.elements_set_enabled_signal.connect(self.elements_set_enabled)
         self.progress_bar_audio_signal.connect(self.progressBar_audio.setValue)
         self.progress_bar_set_value_signal.connect(self.progressBar.setValue)
@@ -146,14 +147,27 @@ class Window(QMainWindow):
         # Show GUI
         self.show()
 
+        # Additional links
+        self.additional_links = []
+        self.additional_links_widgets = []
+
+        # Multiple links indexes
+        self.current_link_index = 0
+
         # Connect buttons
-        self.btn_browser_open.clicked.connect(self.start_browser)
-        self.btn_browser_stop.clicked.connect(self.stop_browser)
+        self.btn_link_add.clicked.connect(lambda: self.link_add(''))
+        self.btn_browser_open.clicked.connect(lambda: self.start_browser(True))
+        self.btn_browser_stop.clicked.connect(lambda: self.stop_browser(True))
         self.btn_refresh.clicked.connect(self.lectures_refresh)
         self.btn_build.clicked.connect(self.lecture_build)
 
         # Set gui elements from settings
-        self.line_edit_link.setText(str(self.settings['gui_link']))
+        gui_links = self.settings['gui_links']
+        if len(gui_links) > 0:
+            self.line_edit_link.setText(str(gui_links[0]))
+            if len(gui_links) > 1:
+                for gui_link_n in range(1, len(gui_links)):
+                    self.link_add(gui_links[gui_link_n])
         self.line_edit_name.setText(str(self.settings['gui_name']))
         self.line_edit_hello_message.setText(str(self.settings['gui_hello_message']))
         self.check_box_hello_message.setChecked(self.settings['gui_hello_message_enabled'])
@@ -184,7 +198,7 @@ class Window(QMainWindow):
         :return:
         """
         # Read data from elements
-        self.settings['gui_link'] = str(str(self.line_edit_link.text()))
+        self.links_to_settings()
         self.settings['gui_name'] = str(str(self.line_edit_name.text()))
         self.settings['gui_hello_message'] = str(str(self.line_edit_hello_message.text()))
         self.settings['gui_hello_message_enabled'] = self.check_box_hello_message.isChecked()
@@ -197,6 +211,91 @@ class Window(QMainWindow):
 
         # Save to file
         save_json(SETTINGS_FILE, self.settings)
+
+    def links_to_settings(self):
+        """
+        Updates gui_links
+        :return:
+        """
+        gui_links = []
+        # Append main link
+        if len(str(self.line_edit_link.text()).strip()) > 0:
+            gui_links.append(str(self.line_edit_link.text()).strip())
+
+        # Append additional links
+        for additional_link in self.additional_links:
+            if additional_link is not None and len(str(additional_link).strip()) > 0:
+                gui_links.append(str(additional_link).strip())
+
+        # Write to settings
+        self.settings['gui_links'] = gui_links
+
+    def link_add(self, link=''):
+        """
+        Adds new link field
+        :return:
+        """
+        logging.info('Adding new link ' + link)
+        # Create elements
+        widget = QWidget()
+        layout = QHBoxLayout()
+        button = QPushButton('-')
+        line_edit = QLineEdit()
+        index_ = len(self.additional_links_widgets)
+
+        # Delete field on button click
+        button.clicked.connect(lambda: self.link_remove(index_))
+
+        # Set initial link
+        if len(link.strip()) > 0:
+            line_edit.setText(link)
+
+        # Connect edit event
+        line_edit.textChanged.connect(lambda: self.link_edit(index_, line_edit.text()))
+
+        # Add elements to new layout
+        layout.addWidget(line_edit)
+        layout.addWidget(button)
+        layout.setContentsMargins(0, 0, 0, 0)
+        widget.setLayout(layout)
+
+        # Add to lists
+        self.additional_links_widgets.append(widget)
+        self.additional_links.append(link)
+
+        # Add to layout
+        self.layout_links.addWidget(widget)
+
+    def link_edit(self, link_index: int, link: str):
+        """
+        Edits additional link
+        :param link_index:
+        :param link:
+        :return:
+        """
+        self.additional_links[link_index] = link
+        self.update_settings()
+
+    def link_remove(self, link_index: int):
+        """
+        Removes link field
+        :param link_index:
+        :return:
+        """
+        logging.info('Removing link with index: ' + str(link_index + 1))
+        if 0 <= link_index < len(self.additional_links_widgets):
+            widget = self.additional_links_widgets[link_index]
+            if widget is not None:
+                # Remove from layout
+                self.layout_links.removeWidget(widget)
+                widget.deleteLater()
+
+                # Remove from list
+                self.additional_links_widgets[link_index] = None
+                self.additional_links[link_index] = ''
+
+                # Write to settings
+                self.update_settings()
 
     def lecture_building_done(self, lecture_name: str):
         """
@@ -254,48 +353,78 @@ class Window(QMainWindow):
             self.lecture_builder.start_building_lecture(str(self.settings['recordings_directory_name'])
                                                         + '/' + selected_lecture, selected_lecture)
 
-    def start_browser(self):
+    def start_browser(self, from_button: bool):
         """
         Asks for confirmation and opens browser and starts recording
+        :param from_button: True if button clicked false if automation
         :return:
         """
-        link = str(self.settings['gui_link']).strip()
+        # Reset current link index if action is from button
+        if from_button:
+            self.current_link_index = 0
+        logging.info('Starting from link with index: ' + str(self.current_link_index))
+
+        # Check link index
+        if self.current_link_index >= len(self.settings['gui_links']):
+            logging.info('No more links')
+            QMessageBox.information(self, 'No links!', 'No more available links provided')
+            self.elements_set_enabled(True, True)
+            return
+
+        # Get link
+        link = str(self.settings['gui_links'][self.current_link_index]).strip()
+        while len(link) <= 0 and self.current_link_index < len(self.settings['gui_links']):
+            self.current_link_index += 1
+            link = str(self.settings['gui_links'][self.current_link_index]).strip()
+
+        # Can not get new link
+        if len(link) <= 0:
+            QMessageBox.warning(self, 'No links!', 'No more available links provided')
+            self.elements_set_enabled(True, True)
+            return
+
         user_name = str(self.settings['gui_name']).strip()
         hello_message = str(self.settings['gui_hello_message']) \
             .strip() if self.settings['gui_hello_message_enabled'] else ''
         proxy = str(self.settings['gui_proxy']).strip()
 
         # Check link and username
-        if len(link) > 0:
-            if len(user_name) > 0:
-                # Ask for confirmation
+        if len(user_name) > 0:
+            start_allowed = False
+            # No confirmation needed in auto mode
+            if not from_button:
+                start_allowed = True
+            # Ask for confirmation
+            else:
                 is_recording_enabled = self.settings['gui_recording_enabled']
                 recording_state_str = 'ENABLED' if is_recording_enabled else 'DISABLED'
                 warning_msg = 'Event recording ' + recording_state_str + '!\nDo you want to continue?'
                 reply = QMessageBox.warning(self, 'Recording ' + recording_state_str, warning_msg, QMessageBox.Yes,
                                             QMessageBox.No)
                 if reply == QMessageBox.Yes:
-                    # Open audio stream
-                    if self.settings['gui_recording_enabled']:
-                        self.audio_handler.open_stream()
+                    start_allowed = True
 
-                    # Disable form elements and start
-                    self.elements_set_enabled(False, True)
-                    self.webinar_handler.start_browser(link, proxy)
-                    self.webinar_handler.start_handler(user_name, hello_message,
-                                                       float(self.settings['webinar_loop_interval_seconds']),
-                                                       self.settings['gui_recording_enabled'],
-                                                       int(self.settings['screenshot_diff_threshold_percents']),
-                                                       int(self.settings['opencv_threshold']))
-            else:
-                QMessageBox.warning(self, 'No user name', 'Please type user name to connect with!')
+            if start_allowed:
+                # Open audio stream
+                if self.settings['gui_recording_enabled']:
+                    self.audio_handler.open_stream()
+
+                # Disable form elements and start
+                self.elements_set_enabled(False, True)
+                self.webinar_handler.start_browser(link, proxy)
+                self.webinar_handler.start_handler(user_name, hello_message,
+                                                   float(self.settings['webinar_loop_interval_seconds']),
+                                                   self.settings['gui_recording_enabled'],
+                                                   int(self.settings['screenshot_diff_threshold_percents']),
+                                                   int(self.settings['opencv_threshold']))
         else:
-            QMessageBox.warning(self, 'No link', 'Please type link to connect to!')
+            QMessageBox.warning(self, 'No user name', 'Please type user name to connect with!')
 
-    def stop_browser(self):
+    def stop_browser(self, from_button: bool):
         """
         Stops recording and closes browser
         :return:
+        :param from_button: True if button clicked false if automation
         """
         # Stop recording
         self.audio_handler.recording_stop()
@@ -311,8 +440,15 @@ class Window(QMainWindow):
         # Refresh lectures
         self.lectures_refresh()
 
-        # Enable GUI elements
-        self.elements_set_enabled(True, True)
+        # Next link
+        if not from_button and self.current_link_index <= len(self.settings['gui_links']):
+            self.current_link_index += 1
+            self.start_browser(False)
+
+        # No more links
+        else:
+            # Enable GUI elements
+            self.elements_set_enabled(True, True)
 
     def elements_set_enabled(self, enabled: bool, browser=False):
         """
@@ -336,6 +472,10 @@ class Window(QMainWindow):
         self.slider_audio_threshold.setEnabled(True if browser else enabled)
         self.spell_correction.setEnabled(enabled)
         self.punctuation_correction.setEnabled(enabled)
+        self.btn_link_add.setEnabled(enabled)
+        for additional_links_widget in self.additional_links_widgets:
+            if additional_links_widget is not None:
+                additional_links_widget.setEnabled(enabled)
 
     def closeEvent(self, event):
         """

@@ -17,6 +17,7 @@
 
 import base64
 import logging
+import os
 import threading
 import time
 
@@ -25,6 +26,7 @@ import numpy as np
 from PyQt5 import QtCore
 from PyQt5.QtGui import QPixmap, QImage
 from selenium import webdriver
+from selenium.common import WebDriverException
 from selenium.webdriver import Keys
 from selenium.webdriver.common.by import By
 
@@ -36,6 +38,9 @@ HANDLER_STAGE_SEND_HELLO_MESSAGE = 1
 HANDLER_STAGE_IDLE = 2
 
 SCREENSHOT_EXTENSION = '.png'
+
+DISCONNECTED_MSG_LOWER = 'disconnected: not connected to devtools'
+DISCONNECTED_EXCEPTION_LOWER = 'already closed'
 
 
 def resize_keep_ratio(source_image, target_width, target_height, interpolation=cv2.INTER_AREA):
@@ -53,12 +58,12 @@ def resize_keep_ratio(source_image, target_width, target_height, interpolation=c
 
 
 class WebinarHandler:
-    def __init__(self, audio_handler, set_gui_enabled: QtCore.pyqtSignal, preview_label):
+    def __init__(self, audio_handler, stop_browser_and_recording: QtCore.pyqtSignal, preview_label):
         """
         Initializes WebinarHandler class
         """
         self.audio_handler = audio_handler
-        self.set_gui_enabled = set_gui_enabled
+        self.stop_browser_and_recording = stop_browser_and_recording
         self.preview_label = preview_label
 
         self.browser = None  # webdriver.Chrome()
@@ -107,10 +112,10 @@ class WebinarHandler:
         :return:
         """
         try:
-            logging.info('Closing browser... Please wait')
-            self.browser.close()
-            self.browser.quit()
-            self.browser = None
+            if self.browser is not None:
+                logging.info('Closing browser... Please wait')
+                self.browser.quit()
+                self.browser = None
         except Exception as e:
             logging.warning(e)
 
@@ -159,10 +164,21 @@ class WebinarHandler:
         handler_stage = HANDLER_STAGE_LOGIN
         while self.handler_loop_running and len(self.user_name) > 0:
             try:
-                # Finished or not found
-                if 'event_stopped' in self.browser.page_source or 'not-found-error' in self.browser.page_source:
-                    logging.warning('Event finished or not found!')
-                    self.set_gui_enabled.emit()
+                # Check if browser is closed
+                browser_closed = False
+                try:
+                    _ = self.browser.window_handles
+                except Exception as e:
+                    logging.warning(e)
+                    browser_closed = True
+                    logging.warning('Browser was closed')
+
+                # Finished or closed
+                if browser_closed or \
+                        'event_stopped' in self.browser.page_source:
+                    logging.warning('Event finished or browser closed!')
+                    if self.browser is not None:
+                        self.stop_browser_and_recording.emit()
                     break
 
                 # Close camera / mic form
