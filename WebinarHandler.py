@@ -159,9 +159,9 @@ class WebinarHandler:
         handler_stage = HANDLER_STAGE_LOGIN
         while self.handler_loop_running and len(self.user_name) > 0:
             try:
-                # Finished
-                if 'event_stopped' in self.browser.page_source:
-                    logging.warning('Event finished!')
+                # Finished or not found
+                if 'event_stopped' in self.browser.page_source or 'not-found-error' in self.browser.page_source:
+                    logging.warning('Event finished or not found!')
                     self.set_gui_enabled.emit()
                     break
 
