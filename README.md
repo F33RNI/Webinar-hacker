@@ -23,6 +23,7 @@
 ## Возможности
 
 - Автоматический вход по ссылке с указанным именем, ожидание начала мероприятия
+- Возможность нескольких ссылок (по завершении мероприятия автоматическое переключение на следующее)
 - Вход, используя прокси
 - Автоматическое написание приветственного сообщения в чат
 - Автоматическое блокирование микрофона и камеры
@@ -43,13 +44,13 @@
 - Скачайте и распакуйте архив последней версии Webinar-hacker: https://github.com/F33RNI/Webinar-hacker/releases/latest
 - Скачайте и установите Google Chrome, если у вас его нет: https://www.google.com/chrome/
 - Запустите приложение, используя файл `Webinar-hacker.exe`
-- Вставьте ссылку на мероприятие в поле `Webinar link:`
+- Вставьте ссылку на мероприятие в поле `Webinar links:`
+- Если меропрятий несколько, нажмите на кнопку `+` чтобы добавить новую ссылку и на кнопки `-` чтобы удалить ссылки
 - Укажите имя, с которым нужно подключиться в поле `Connect with name:`
 - Укажите приветственное сообщение, которое необходимо отправить в чат после начала мероприятия в поле `Hello message:`
 - Укажите, нужно ли записывать это мероприятие для последующего транскрибирования
 - Нажмите кнопку `Start` и дождитесь открытия браузера
 - Готово! Вход, запись и выход будут выполнены автоматически. Чтобы закрыть браузер раньше, нажмите на кнопку `Stop and close`
-- **Важно! Не закрывайте окно браузера напрямую. Используйте кнопку Stop and close!**
 
 После завершения мероприятия, записанный материал можно транскрибировать в `.docx` документ с картинками:
 - Для этого обновите список записей нажав на кнопку `Refresh`
@@ -64,7 +65,7 @@
 ## Настройки и файл настроек
 
 - Настройки Webinar-hacker хранятся в файле `settings.json`
-- Настройки `"gui_link", "gui_name", "gui_hello_message", "gui_hello_message_enabled", "gui_recording_enabled", "gui_proxy", "gui_audio_threshold_dbfs", "gui_spell_correction_enabled", "gui_punctuation_correction_enabled"` редактируются при помощи элементов интерфейса в реальном времени
+- Настройки `"gui_links", "gui_name", "gui_hello_message", "gui_hello_message_enabled", "gui_recording_enabled", "gui_proxy", "gui_audio_threshold_dbfs", "gui_spell_correction_enabled", "gui_punctuation_correction_enabled"` редактируются при помощи элементов интерфейса в реальном времени
 - Для изменения других настроек, закройте приложение, откройте данный файл в текстовом редакторе, измените нужные параметры и откройте приложение заново
 - **Важно! Webinar-hacker не проводит автоматическую проверку настроек. Если вы задали неверное значение, ошибка появится в неожиданный момент! Будьте внимательны при редактировании файла**
 
@@ -74,7 +75,7 @@
     "screenshot_diff_threshold_percents": 5,
     "opencv_threshold": 10,
     "word_low_probability_threshold_percents": 90,
-    "webinar_loop_interval_seconds": 5.0,
+    "webinar_loop_interval_seconds": 3.0,
     "timestamp_format": "%d_%m_%Y__%H_%M_%S",
     "audio_chunk_size": 4096,
     "audio_recording_chunks_min": 6,
@@ -96,7 +97,7 @@
         0
     ],
     "speech_recognition_model": "jonatasgrosman/wav2vec2-large-xlsr-53-russian",
-    "gui_link": "",
+    "gui_links": [],
     "gui_name": "Tester",
     "gui_hello_message": "\u0417\u0434\u0440\u0430\u0432\u0441\u0442\u0432\u0443\u0439\u0442\u0435!",
     "gui_hello_message_enabled": true,
