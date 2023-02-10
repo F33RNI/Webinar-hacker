@@ -3,7 +3,7 @@
 ## Автоматическая запись и транскрибирование лекций из платформы webinar.ru
 <div style="width:100%;text-align:center;">
     <p align="center">
-        <a href="https://github.com/F33RNI/Pulsely/releases"><img alt="Download release" src="https://img.shields.io/badge/-Download%20latest-yellowgreen?style=for-the-badge&logo=github" ></a>
+        <a href="https://github.com/F33RNI/Webinar-hacker/releases"><img alt="Download release" src="https://img.shields.io/badge/-Download%20latest-yellowgreen?style=for-the-badge&logo=github" ></a>
     </p>
     <p align="center">
         <img src="https://badges.frapsoft.com/os/v1/open-source.png?v=103" >
