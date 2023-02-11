@@ -459,7 +459,8 @@ class Window(QMainWindow):
         # Error
         except Exception as e:
             logging.error(e, exc_info=True)
-            QMessageBox.critical(self, 'Error', 'Error starting browser and other staff\n' + str(e))
+            QMessageBox.critical(self, 'Error', 'Error starting browser and other staff\n' + str(e)
+                                 + '\nTry turning off recording.')
 
     def stop_browser(self, from_button: bool):
         """
