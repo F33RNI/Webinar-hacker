@@ -24,6 +24,9 @@ import time
 
 from main import WEBINAR_HACKER_VERSION
 
+# True to delete dist and build folder every time and build with --clean flag
+CLEAN_BUILD = True
+
 MAIN_FILE = 'main'
 FINAL_NAME = 'Webinar-hacker'
 
@@ -49,16 +52,17 @@ EXCLUDE_FROM_BUILD = []
 
 if __name__ == '__main__':
     pyi_command = []
+    if CLEAN_BUILD:
+        print('Deleting dist and build folders...')
+        # Remove dist folder is exists
+        if 'dist' in os.listdir('./'):
+            shutil.rmtree('dist', ignore_errors=True)
+            print('dist folder deleted')
 
-    # Remove dist folder is exists
-    if 'dist' in os.listdir('./'):
-        shutil.rmtree('dist', ignore_errors=True)
-        print('dist folder deleted')
-
-    # Remove build folder is exists
-    if 'build' in os.listdir('./'):
-        shutil.rmtree('build', ignore_errors=True)
-        print('build folder deleted')
+        # Remove build folder is exists
+        if 'build' in os.listdir('./'):
+            shutil.rmtree('build', ignore_errors=True)
+            print('build folder deleted')
 
     # Add all .py files to pyi_command
     for file in os.listdir('./'):
@@ -76,6 +80,9 @@ if __name__ == '__main__':
     # Other command arguments
     # pyi_command.insert(0, '--windowed')
     pyi_command.insert(0, 'torch')
+    pyi_command.insert(0, '--collect-data')
+
+    pyi_command.insert(0, 'whisper-timestamped')
     pyi_command.insert(0, '--collect-data')
 
     pyi_command.insert(0, 'tensorflow')
@@ -108,7 +115,7 @@ if __name__ == '__main__':
     pyi_command.insert(0, 'tokenizers')
     pyi_command.insert(0, '--copy-metadata')
 
-    pyi_command.insert(0, 'tokenizers')
+    pyi_command.insert(0, 'whisper-timestamped')
     pyi_command.insert(0, '--copy-metadata')
 
     pyi_command.insert(0, 'pyi-makespec')
@@ -159,7 +166,7 @@ if __name__ == '__main__':
                                   '(\'' + os.path.join(site_packages_path,'huggingsound').replace('\\','\\\\') + '\', \'huggingsound\'),'
                                   '(\'' + os.path.join(site_packages_path, 'datasets').replace('\\','\\\\') + '\', \'datasets\'),'
                                   '(\'' + os.path.join(site_packages_path, 'transformers').replace('\\','\\\\') + '\', \'transformers\'),'
-                                  '(\'' + 'dict-ru' + '\', \'enchant/data/mingw64/share/enchant/hunspell\')'
+                                  '(\'' + os.path.join(site_packages_path, 'whisper').replace('\\','\\\\') + '\', \'whisper\')'
                                   ']')
 
             # Set final name
@@ -173,8 +180,10 @@ if __name__ == '__main__':
                 # exit(0)
 
                 # Create new pyi command
-                # pyi_command = ['pyinstaller', MAIN_FILE + '.spec']
-                pyi_command = ['pyinstaller', MAIN_FILE + '.spec', '--clean']
+                if CLEAN_BUILD:
+                    pyi_command = ['pyinstaller', MAIN_FILE + '.spec', '--clean']
+                else:
+                    pyi_command = ['pyinstaller', MAIN_FILE + '.spec']
 
                 # Execute pyi
                 print(pyi_command)
@@ -182,15 +191,15 @@ if __name__ == '__main__':
 
                 # If dist folder created
                 if 'dist' in os.listdir('.') and FINAL_NAME in os.listdir('./dist'):
+                    if CLEAN_BUILD:
+                        # Remove build folder is exists
+                        if 'build' in os.listdir('./'):
+                            shutil.rmtree('build', ignore_errors=True)
+                            print('build folder deleted')
 
-                    # Remove build folder is exists
-                    if 'build' in os.listdir('./'):
-                        shutil.rmtree('build', ignore_errors=True)
-                        print('build folder deleted')
-
-                    # Wait some time
-                    print('Waiting 1 second...')
-                    time.sleep(1)
+                        # Wait some time
+                        print('Waiting 1 second...')
+                        time.sleep(1)
 
                     # Copy include files to it
                     for file in INCLUDE_FILES:
