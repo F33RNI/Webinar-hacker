@@ -14,7 +14,7 @@
     "screenshots_directory_name": "screenshots",
     "whisper_model_name": "medium",
     "whisper_model_language": "ru",
-    "lecture_build_time_filter_factor": 0.74,
+    "lecture_build_time_filter_factor": 0.8,
     "lecture_picture_width_inches": 6.0,
     "lecture_font_size_pt": 12,
     "lecture_default_text_color": [
