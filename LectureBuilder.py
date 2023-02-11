@@ -18,6 +18,7 @@
 import logging
 import os
 import threading
+import time
 
 from docx import Document
 from docx.shared import Inches, RGBColor, Pt
@@ -29,16 +30,19 @@ WAVE_FILE_SIZE_MIN_BYTES = 100
 
 class LectureBuilder:
     def __init__(self, settings, elements_set_enabled_signal, progress_bar_set_value_signal,
-                 progress_bar_set_maximum_signal, lecture_building_done_signal, label_device_signal):
+                 progress_bar_set_maximum_signal, lecture_building_done_signal, label_device_signal,
+                 label_time_left_signal):
         self.settings = settings
         self.elements_set_enabled_signal = elements_set_enabled_signal
         self.progress_bar_set_value_signal = progress_bar_set_value_signal
         self.progress_bar_set_maximum_signal = progress_bar_set_maximum_signal
         self.lecture_building_done_signal = lecture_building_done_signal
         self.label_device_signal = label_device_signal
+        self.label_time_left_signal = label_time_left_signal
 
         self.audio_files = []
         self.screenshots = []
+        self.audio_bytes_total = 0
         self.lecture_name = ''
         self.model = None
 
@@ -53,6 +57,7 @@ class LectureBuilder:
         self.lecture_name = lecture_name
         self.audio_files = []
         self.screenshots = []
+        self.audio_bytes_total = 0
 
         # Find audio files
         for audio_or_screenshot_dir in os.listdir(lecture_directory):
@@ -72,10 +77,12 @@ class LectureBuilder:
                             logging.info('Found audio file: ' + str(file_) + ' with time: ' + str(time_diff_int))
 
                             # Check file size
-                            if os.path.getsize(str(file_)) < WAVE_FILE_SIZE_MIN_BYTES:
+                            file_size = os.path.getsize(str(file_))
+                            if file_size < WAVE_FILE_SIZE_MIN_BYTES:
                                 logging.warning('Size of file ' + str(file_) + ' too small! Ignoring it')
                             else:
-                                self.audio_files.append([time_diff_int, str(file_)])
+                                self.audio_files.append([time_diff_int, str(file_), file_size])
+                                self.audio_bytes_total += file_size
 
         # Find screenshots
         screenshots_dir = lecture_directory + '/' + str(self.settings['screenshots_directory_name']) + '/'
@@ -127,8 +134,8 @@ class LectureBuilder:
                 # Select cpu or gpu
                 import torch
                 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-                logging.info('Using device: ' + device)
-                self.label_device_signal.emit('Using device: ' + device)
+                logging.info('Device: ' + device)
+                self.label_device_signal.emit('Device: ' + device)
 
                 # Load model
                 model_dir = os.getcwd()
@@ -143,7 +150,9 @@ class LectureBuilder:
 
             # Transcribe audio
             logging.info('Starting transcription... Please wait')
+            seconds_per_byte_filtered = 0
             self.progress_bar_set_maximum_signal.emit(len(self.audio_files))
+            self.label_time_left_signal.emit('Time left: 00:00:00')
             for audio_file_n in range(len(self.audio_files)):
                 # Set progress
                 self.progress_bar_set_value_signal.emit(audio_file_n + 1)
@@ -151,6 +160,9 @@ class LectureBuilder:
                 transcription = None
                 audio_file_ = self.audio_files[audio_file_n]
                 try:
+                    # Record start time
+                    transcription_time_started = time.time()
+
                     # Load audio file
                     audio = whisper.load_audio(audio_file_[1])
                     audio = whisper.pad_or_trim(audio)
@@ -158,6 +170,30 @@ class LectureBuilder:
                     # Transcribe audio
                     transcription = whisper.transcribe(self.model, audio,
                                                        language=str(self.settings['whisper_model_language']))
+
+                    # Calculate seconds per byte
+                    seconds_per_byte = (time.time() - transcription_time_started) / audio_file_[2]
+                    if seconds_per_byte_filtered == 0:
+                        seconds_per_byte_filtered = seconds_per_byte
+                    else:
+                        filter_factor = float(self.settings['lecture_build_time_filter_factor'])
+                        seconds_per_byte_filtered = seconds_per_byte_filtered * filter_factor \
+                                                    + seconds_per_byte * (1. - filter_factor)
+                    logging.info('Microseconds per byte: ' + str(int(seconds_per_byte * 1000 * 1000)) + ', avg: '
+                                 + str(int(seconds_per_byte_filtered * 1000 * 1000)))
+
+                    # Subtract processed bytes
+                    self.audio_bytes_total -= audio_file_[2]
+
+                    # Calculate and show time left
+                    seconds_left = self.audio_bytes_total * seconds_per_byte_filtered
+                    logging.info('Time left: ~' + str(int(seconds_left)) + 's')
+                    time_left_seconds = int(seconds_left % 60)
+                    time_left_minutes = int((seconds_left / 60) % 60)
+                    time_left_hours = int(seconds_left / (60 * 60))
+                    self.label_time_left_signal.emit('Time left: ' + '{:02d}'.format(time_left_hours)
+                                                     + ':' + '{:02d}'.format(time_left_minutes)
+                                                     + ':' + '{:02d}'.format(time_left_seconds))
                 # Error
                 except Exception as e:
                     logging.warning(e)
@@ -201,6 +237,7 @@ class LectureBuilder:
         # Reset progress
         self.progress_bar_set_maximum_signal.emit(100)
         self.progress_bar_set_value_signal.emit(0)
+        self.label_time_left_signal.emit('Time left: 00:00:00')
 
         # Enable gui elements
         self.elements_set_enabled_signal.emit(True)

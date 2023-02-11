@@ -32,7 +32,7 @@ import AudioHandler
 import LectureBuilder
 import WebinarHandler
 
-WEBINAR_HACKER_VERSION = 'beta_2.0.2'
+WEBINAR_HACKER_VERSION = 'beta_2.1.0'
 WEBINAR_HACKER_VERSION_CHECK_URL = 'https://api.github.com/repos/F33RNI/Webinar-Hacker/releases/latest'
 WEBINAR_HACKER_URL = 'https://github.com/F33RNI/Webinar-hacker'
 
@@ -111,6 +111,8 @@ class Window(QMainWindow):
     lecture_building_done_signal = QtCore.pyqtSignal(str)  # QtCore.Signal(str)
     label_rec_set_stylesheet_signal = QtCore.pyqtSignal(str)  # QtCore.Signal(str)
     label_device_signal = QtCore.pyqtSignal(str)  # QtCore.Signal(str)
+    label_current_link_time_signal = QtCore.pyqtSignal(str)  # QtCore.Signal(str)
+    label_time_left_signal = QtCore.pyqtSignal(str)  # QtCore.Signal(str)
 
     def __init__(self, settings_):
         super(Window, self).__init__()
@@ -132,17 +134,20 @@ class Window(QMainWindow):
         self.lecture_building_done_signal.connect(self.lecture_building_done)
         self.label_rec_set_stylesheet_signal.connect(self.label_rec.setStyleSheet)
         self.label_device_signal.connect(self.label_device.setText)
+        self.label_current_link_time_signal.connect(self.label_current_link_time.setText)
+        self.label_time_left_signal.connect(self.label_time_left.setText)
 
         # Initialize classes
         self.audio_handler = AudioHandler.AudioHandler(self.settings, self.progress_bar_audio_signal,
                                                        self.label_rec_set_stylesheet_signal)
         self.webinar_handler = WebinarHandler.WebinarHandler(self.audio_handler, self.stop_browser_and_recording,
-                                                             self.preview_label)
+                                                             self.preview_label, self.label_current_link_time_signal)
         self.lecture_builder = LectureBuilder.LectureBuilder(self.settings, self.elements_set_enabled_signal,
                                                              self.progress_bar_set_value_signal,
                                                              self.progress_bar_set_maximum_signal,
                                                              self.lecture_building_done_signal,
-                                                             self.label_device_signal)
+                                                             self.label_device_signal,
+                                                             self.label_time_left_signal)
 
         # Set window title
         self.setWindowTitle('Webinar hacker ' + WEBINAR_HACKER_VERSION)
@@ -179,6 +184,9 @@ class Window(QMainWindow):
         self.check_box_hello_message.setChecked(self.settings['gui_hello_message_enabled'])
         self.check_box_recording.setChecked(self.settings['gui_recording_enabled'])
         self.line_edit_proxy.setText(str(self.settings['gui_proxy']))
+        gui_max_event_time = int(self.settings['gui_max_event_time_milliseconds']) / 1000 / 60
+        self.spin_box_time_hours.setValue(int(gui_max_event_time / 60))
+        self.spin_box_time_minutes.setValue(int(gui_max_event_time % 60))
         self.slider_audio_threshold.setValue(int(self.settings['gui_audio_threshold_dbfs']))
         self.label_audio_threshold.setText(str(int(self.settings['gui_audio_threshold_dbfs'])) + ' dBFS')
 
@@ -190,6 +198,8 @@ class Window(QMainWindow):
         self.check_box_recording.clicked.connect(self.update_settings)
         self.line_edit_proxy.textChanged.connect(self.update_settings)
         self.slider_audio_threshold.valueChanged.connect(self.update_settings)
+        self.spin_box_time_hours.valueChanged.connect(self.update_settings)
+        self.spin_box_time_minutes.valueChanged.connect(self.update_settings)
 
         # Refresh list of lectures
         self.lectures_refresh()
@@ -209,6 +219,8 @@ class Window(QMainWindow):
         self.settings['gui_hello_message_enabled'] = self.check_box_hello_message.isChecked()
         self.settings['gui_recording_enabled'] = self.check_box_recording.isChecked()
         self.settings['gui_proxy'] = str(str(self.line_edit_proxy.text()))
+        self.settings['gui_max_event_time_milliseconds'] = (int(self.spin_box_time_hours.value()) * 60
+                                                            + int(self.spin_box_time_minutes.value())) * 60 * 1000
         self.settings['gui_audio_threshold_dbfs'] = int(self.slider_audio_threshold.value())
         self.label_audio_threshold.setText(str(int(self.slider_audio_threshold.value())) + ' dBFS')
 
@@ -439,7 +451,8 @@ class Window(QMainWindow):
                                                        float(self.settings['webinar_loop_interval_seconds']),
                                                        self.settings['gui_recording_enabled'],
                                                        int(self.settings['screenshot_diff_threshold_percents']),
-                                                       int(self.settings['opencv_threshold']))
+                                                       int(self.settings['opencv_threshold']),
+                                                       int(self.settings['gui_max_event_time_milliseconds']))
             else:
                 QMessageBox.warning(self, 'No user name', 'Please type user name to connect with!')
 
@@ -493,6 +506,8 @@ class Window(QMainWindow):
         self.check_box_hello_message.setEnabled(enabled)
         self.check_box_recording.setEnabled(enabled)
         self.line_edit_proxy.setEnabled(enabled)
+        self.spin_box_time_hours.setEnabled(enabled)
+        self.spin_box_time_minutes.setEnabled(enabled)
         self.btn_browser_open.setEnabled(enabled)
         self.btn_browser_stop.setEnabled(not enabled if browser else False)
         self.combo_box_recordings.setEnabled(enabled)

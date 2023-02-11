@@ -58,13 +58,15 @@ def resize_keep_ratio(source_image, target_width, target_height, interpolation=c
 
 
 class WebinarHandler:
-    def __init__(self, audio_handler, stop_browser_and_recording: QtCore.pyqtSignal, preview_label):
+    def __init__(self, audio_handler, stop_browser_and_recording: QtCore.pyqtSignal, preview_label,
+                 label_current_link_time_signal: QtCore.pyqtSignal):
         """
         Initializes WebinarHandler class
         """
         self.audio_handler = audio_handler
         self.stop_browser_and_recording = stop_browser_and_recording
         self.preview_label = preview_label
+        self.label_current_link_time_signal = label_current_link_time_signal
 
         self.browser = None  # webdriver.Chrome()
         self.handler_loop_running = False
@@ -76,6 +78,7 @@ class WebinarHandler:
 
         self.screenshot_diff_threshold_percents = 0
         self.opencv_threshold = 0
+        self.max_event_time = 0
         self.opencv_image_prev = None
 
     def start_browser(self, link: str, proxy: str):
@@ -121,7 +124,7 @@ class WebinarHandler:
 
     def start_handler(self, user_name: str, hello_message: str,
                       webinar_loop_interval_seconds: float, recording_enabled: bool,
-                      screenshot_diff_threshold_percents: int, opencv_threshold: int):
+                      screenshot_diff_threshold_percents: int, opencv_threshold: int, max_event_time: int):
         """
         Starts webinar handler
         :param user_name: Connect with this name (not empty)
@@ -129,7 +132,8 @@ class WebinarHandler:
         :param webinar_loop_interval_seconds: Webinar handler loop interval
         :param recording_enabled: Enable auto recording
         :param screenshot_diff_threshold_percents: how many % screenshots should diff to save screenshot
-        :param opencv_threshold: cv2.threshold threshold function
+        :param opencv_threshold: cv2.threshold function
+        :param max_event_time: how long to wait before closing current event (0 to disable)
         :return:
         """
         # Set username, hello message and loop interval
@@ -139,6 +143,7 @@ class WebinarHandler:
         self.recording_enabled = recording_enabled
         self.screenshot_diff_threshold_percents = screenshot_diff_threshold_percents
         self.opencv_threshold = opencv_threshold
+        self.max_event_time = max_event_time
 
         self.opencv_image_prev = None
 
@@ -148,6 +153,9 @@ class WebinarHandler:
         thread.start()
         logging.info('Webinar handler thread: ' + thread.name)
 
+        # Restart current time label
+        self.label_current_link_time_signal.emit('Current link time: 00:00:00')
+
     def stop_handler(self):
         """
         Stops webinar handler
@@ -155,15 +163,30 @@ class WebinarHandler:
         """
         self.handler_loop_running = False
 
+        # Restart current time label
+        self.label_current_link_time_signal.emit('Current link time: 00:00:00')
+
     def handler_loop(self):
         """
         Handles logging, popup blocking, attention checking etc...
         :return:
         """
-        # Set initial stage
+        # Set initial stage and time
         handler_stage = HANDLER_STAGE_LOGIN
+        time_started = int(time.time() * 1000)
         while self.handler_loop_running and len(self.user_name) > 0:
             try:
+                # Calculate current time
+                time_passed = int(time.time() * 1000) - time_started
+
+                # Print current time
+                time_passed_seconds = int((time_passed / 1000) % 60)
+                time_passed_minutes = int((time_passed / (1000 * 60)) % 60)
+                time_passed_hours = int(time_passed / (1000 * 60 * 60))
+                self.label_current_link_time_signal.emit('Current link time: ' + '{:02d}'.format(time_passed_hours)
+                                                         + ':' + '{:02d}'.format(time_passed_minutes)
+                                                         + ':' + '{:02d}'.format(time_passed_seconds))
+
                 # Check if browser is closed
                 browser_closed = False
                 try:
@@ -173,11 +196,17 @@ class WebinarHandler:
                     browser_closed = True
                     logging.warning('Browser was closed')
 
-                # Finished or closed
-                if browser_closed or \
+                # Check if timed out
+                timed_out = False
+                if time_passed > self.max_event_time > 0:
+                    logging.info('Timeout!')
+                    timed_out = True
+
+                # Finished, timed out or closed
+                if browser_closed or timed_out or \
                         'AfterMeetingScreenContent' in self.browser.page_source or \
                         'event_stopped' in self.browser.page_source:
-                    logging.warning('Event finished or browser closed!')
+                    logging.warning('Event finished, timed out or browser closed! Closing browser...')
                     if self.browser is not None:
                         self.stop_browser_and_recording.emit()
                     break
@@ -359,8 +388,8 @@ class WebinarHandler:
 
                             # Save screenshot
                             if diff_percents >= self.screenshot_diff_threshold_percents:
-                                screenshot_name = str(int(time.time() * 1000) -
-                                                      self.audio_handler.recording_started_time) + SCREENSHOT_EXTENSION
+                                screenshot_name = str(int(time.time() * 1000) - self.audio_handler
+                                                      .recording_started_time) + SCREENSHOT_EXTENSION
                                 logging.info('Saving current screenshot as ' + screenshot_name + '...')
                                 cv2.imwrite(self.audio_handler.screenshots_dir + screenshot_name, opencv_image)
 

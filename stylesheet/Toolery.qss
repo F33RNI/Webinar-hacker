@@ -101,7 +101,6 @@ QComboBox::down-arrow
 	border: 0px;
     background-repeat: no-repeat;
     background-position: center center;
-    background-image-width: 50px;
     border-image: url("stylesheet/icons8-down-24.png");
 }
 
@@ -111,6 +110,44 @@ QComboBox:disabled
 	border: 4px solid #afa7b8;
 }
 
+
+/*-----QSpinBox-----*/
+QSpinBox
+{
+    border: 2px solid #e4e6ed;
+    background: #e4e6ed;
+    font-weight: bold;
+}
+QSpinBox::up-arrow
+{
+    border: none;
+    background-repeat: no-repeat;
+    background-position: center center;
+    border-image: url("stylesheet/icons8-up-24.png");
+}
+
+QSpinBox::down-arrow
+{
+    border: none;
+    background-repeat: no-repeat;
+    background-position: center center;
+    border-image: url("stylesheet/icons8-down-24.png");
+}
+
+QSpinBox::down-button
+{
+    border: none;
+}
+
+QSpinBox::up-button
+{
+    border: none;
+}
+QSpinBox::disabled
+{
+    border: 2px solid #afa7b8;
+    background: #afa7b8;
+}
 
 /*-----QLabel-----*/
 QLabel
@@ -176,8 +213,8 @@ QCheckBox
 /*-----QCheckBox-----*/
 QCheckBox::indicator
 {
-    background-color: #ffffff;
-    border: 1px solid darkgray;
+    background-color: #e4e6ed;
+    border: 1px solid #e4e6ed;
     width: 12px;
     height: 12px;
 
@@ -186,9 +223,10 @@ QCheckBox::indicator
 
 QCheckBox::indicator:checked
 {
-    image:url("./ressources/check.png");
-	background-color: #8944b8;
-    border: 1px solid #8944b8;
+    background-repeat: no-repeat;
+    background-position: center center;
+    border-image: url("stylesheet/icons8-done-64.png");
+	background-color: #e4e6ed;
 
 }
 
@@ -200,18 +238,10 @@ QCheckBox::indicator:unchecked:hover
 }
 
 
-QCheckBox::disabled
-{
-	color: #656565;
-
-}
-
-
 QCheckBox::indicator:disabled
 {
-	background-color: #656565;
-	color: #656565;
-    border: 1px solid #656565;
+	background-color: #afa7b8;
+    border: 1px solid #afa7b8;
 
 }
 

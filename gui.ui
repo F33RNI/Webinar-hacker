@@ -8,7 +8,7 @@
     <x>0</x>
     <y>0</y>
     <width>276</width>
-    <height>671</height>
+    <height>731</height>
    </rect>
   </property>
   <property name="font">
@@ -138,13 +138,6 @@
      </layout>
     </item>
     <item>
-     <widget class="QCheckBox" name="check_box_recording">
-      <property name="text">
-       <string>Enable recording</string>
-      </property>
-     </widget>
-    </item>
-    <item>
      <layout class="QHBoxLayout" name="horizontalLayout_4">
       <item>
        <widget class="QLabel" name="label_2">
@@ -157,6 +150,66 @@
        <widget class="QLineEdit" name="line_edit_proxy"/>
       </item>
      </layout>
+    </item>
+    <item>
+     <layout class="QHBoxLayout" name="horizontalLayout_9">
+      <item>
+       <widget class="QLabel" name="label_8">
+        <property name="text">
+         <string>Max. link time:</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="label_6">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="text">
+         <string>H:</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QSpinBox" name="spin_box_time_hours"/>
+      </item>
+      <item>
+       <widget class="QLabel" name="label_7">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="text">
+         <string>M:</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QSpinBox" name="spin_box_time_minutes">
+        <property name="minimum">
+         <number>0</number>
+        </property>
+        <property name="maximum">
+         <number>59</number>
+        </property>
+        <property name="value">
+         <number>0</number>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </item>
+    <item>
+     <widget class="QLabel" name="label_current_link_time">
+      <property name="text">
+       <string>Current link time: 00:00:00</string>
+      </property>
+     </widget>
     </item>
     <item>
      <widget class="QLabel" name="preview_label">
@@ -186,6 +239,13 @@
       </property>
       <property name="alignment">
        <set>Qt::AlignCenter</set>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QCheckBox" name="check_box_recording">
+      <property name="text">
+       <string>Enable recording</string>
       </property>
      </widget>
     </item>
@@ -352,11 +412,22 @@
      </layout>
     </item>
     <item>
-     <widget class="QLabel" name="label_device">
-      <property name="text">
-       <string>Using device: None</string>
-      </property>
-     </widget>
+     <layout class="QHBoxLayout" name="horizontalLayout_10">
+      <item>
+       <widget class="QLabel" name="label_device">
+        <property name="text">
+         <string>Device: None</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="label_time_left">
+        <property name="text">
+         <string>Time left: 00:00:00</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
     </item>
    </layout>
   </widget>
