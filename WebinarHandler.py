@@ -17,7 +17,6 @@
 
 import base64
 import logging
-import os
 import threading
 import time
 
@@ -25,12 +24,10 @@ import cv2
 import numpy as np
 from PyQt5 import QtCore
 from PyQt5.QtGui import QPixmap, QImage
+from qt_thread_updater import get_updater
 from selenium import webdriver
-from selenium.common import WebDriverException
 from selenium.webdriver import Keys
 from selenium.webdriver.common.by import By
-
-from qt_thread_updater import get_updater
 from webdriver_manager.chrome import ChromeDriverManager
 
 HANDLER_STAGE_LOGIN = 0
@@ -41,6 +38,8 @@ SCREENSHOT_EXTENSION = '.png'
 
 DISCONNECTED_MSG_LOWER = 'disconnected: not connected to devtools'
 DISCONNECTED_EXCEPTION_LOWER = 'already closed'
+
+SAVING_TEXT_COLOR = (85, 85, 217)
 
 
 def resize_keep_ratio(source_image, target_width, target_height, interpolation=cv2.INTER_AREA):
@@ -396,6 +395,11 @@ class WebinarHandler:
                             # Resize preview
                             preview_resized = resize_keep_ratio(opencv_image, self.preview_label.size().width(),
                                                                 self.preview_label.size().height())
+
+                            # Put Saving... text on top of the image
+                            if diff_percents >= self.screenshot_diff_threshold_percents:
+                                cv2.putText(preview_resized, 'Saving...', (10, preview_resized.shape[0] // 2),
+                                            cv2.FONT_HERSHEY_SIMPLEX, 2, SAVING_TEXT_COLOR, 2, cv2.LINE_AA)
 
                             # Convert to pixmap
                             pixmap = QPixmap.fromImage(
