@@ -32,7 +32,7 @@
     "gui_name": "Tester",
     "gui_hello_message": "\u0417\u0434\u0440\u0430\u0432\u0441\u0442\u0432\u0443\u0439\u0442\u0435!",
     "gui_hello_message_enabled": true,
-    "gui_recording_enabled": false,
+    "gui_recording_enabled": true,
     "gui_proxy": "",
     "gui_max_event_time_milliseconds": 5400000,
     "gui_audio_threshold_dbfs": -35
