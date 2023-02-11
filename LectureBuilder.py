@@ -131,8 +131,10 @@ class LectureBuilder:
                 self.label_device_signal.emit('Using device: ' + device)
 
                 # Load model
-                logging.info('Loading model...')
-                self.model = whisper.load_model(str(self.settings['whisper_model_name']), device=device)
+                model_dir = os.getcwd()
+                logging.info('Loading model into: ' + model_dir)
+                self.model = whisper.load_model(str(self.settings['whisper_model_name']), device=device,
+                                                download_root=model_dir)
 
             # Result lists
             words = []

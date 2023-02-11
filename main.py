@@ -32,7 +32,7 @@ import AudioHandler
 import LectureBuilder
 import WebinarHandler
 
-WEBINAR_HACKER_VERSION = 'beta_2.0.0'
+WEBINAR_HACKER_VERSION = 'beta_2.0.2'
 WEBINAR_HACKER_VERSION_CHECK_URL = 'https://api.github.com/repos/F33RNI/Webinar-Hacker/releases/latest'
 WEBINAR_HACKER_URL = 'https://github.com/F33RNI/Webinar-hacker'
 
@@ -381,66 +381,72 @@ class Window(QMainWindow):
         :param from_button: True if button clicked false if automation
         :return:
         """
-        # Reset current link index if action is from button
-        if from_button:
-            self.current_link_index = 0
-        logging.info('Starting from link with index: ' + str(self.current_link_index))
+        try:
+            # Reset current link index if action is from button
+            if from_button:
+                self.current_link_index = 0
+            logging.info('Starting from link with index: ' + str(self.current_link_index))
 
-        # Check link index
-        if self.current_link_index >= len(self.settings['gui_links']):
-            logging.info('No more links')
-            QMessageBox.information(self, 'No links!', 'No more available links provided')
-            self.elements_set_enabled(True, True)
-            return
+            # Check link index
+            if self.current_link_index >= len(self.settings['gui_links']):
+                logging.info('No more links')
+                QMessageBox.information(self, 'No links!', 'No more available links provided')
+                self.elements_set_enabled(True, True)
+                return
 
-        # Get link
-        link = str(self.settings['gui_links'][self.current_link_index]).strip()
-        while len(link) <= 0 and self.current_link_index < len(self.settings['gui_links']):
-            self.current_link_index += 1
+            # Get link
             link = str(self.settings['gui_links'][self.current_link_index]).strip()
+            while len(link) <= 0 and self.current_link_index < len(self.settings['gui_links']):
+                self.current_link_index += 1
+                link = str(self.settings['gui_links'][self.current_link_index]).strip()
 
-        # Can not get new link
-        if len(link) <= 0:
-            QMessageBox.warning(self, 'No links!', 'No more available links provided')
-            self.elements_set_enabled(True, True)
-            return
+            # Can not get new link
+            if len(link) <= 0:
+                QMessageBox.warning(self, 'No links!', 'No more available links provided')
+                self.elements_set_enabled(True, True)
+                return
 
-        user_name = str(self.settings['gui_name']).strip()
-        hello_message = str(self.settings['gui_hello_message']) \
-            .strip() if self.settings['gui_hello_message_enabled'] else ''
-        proxy = str(self.settings['gui_proxy']).strip()
+            user_name = str(self.settings['gui_name']).strip()
+            hello_message = str(self.settings['gui_hello_message']) \
+                .strip() if self.settings['gui_hello_message_enabled'] else ''
+            proxy = str(self.settings['gui_proxy']).strip()
 
-        # Check link and username
-        if len(user_name) > 0:
-            start_allowed = False
-            # No confirmation needed in auto mode
-            if not from_button:
-                start_allowed = True
-            # Ask for confirmation
-            else:
-                is_recording_enabled = self.settings['gui_recording_enabled']
-                recording_state_str = 'ENABLED' if is_recording_enabled else 'DISABLED'
-                warning_msg = 'Event recording ' + recording_state_str + '!\nDo you want to continue?'
-                reply = QMessageBox.warning(self, 'Recording ' + recording_state_str, warning_msg, QMessageBox.Yes,
-                                            QMessageBox.No)
-                if reply == QMessageBox.Yes:
+            # Check link and username
+            if len(user_name) > 0:
+                start_allowed = False
+                # No confirmation needed in auto mode
+                if not from_button:
                     start_allowed = True
+                # Ask for confirmation
+                else:
+                    is_recording_enabled = self.settings['gui_recording_enabled']
+                    recording_state_str = 'ENABLED' if is_recording_enabled else 'DISABLED'
+                    warning_msg = 'Event recording ' + recording_state_str + '!\nDo you want to continue?'
+                    reply = QMessageBox.warning(self, 'Recording ' + recording_state_str, warning_msg, QMessageBox.Yes,
+                                                QMessageBox.No)
+                    if reply == QMessageBox.Yes:
+                        start_allowed = True
 
-            if start_allowed:
-                # Open audio stream
-                if self.settings['gui_recording_enabled']:
-                    self.audio_handler.open_stream()
+                if start_allowed:
+                    # Open audio stream
+                    if self.settings['gui_recording_enabled']:
+                        self.audio_handler.open_stream()
 
-                # Disable form elements and start
-                self.elements_set_enabled(False, True)
-                self.webinar_handler.start_browser(link, proxy)
-                self.webinar_handler.start_handler(user_name, hello_message,
-                                                   float(self.settings['webinar_loop_interval_seconds']),
-                                                   self.settings['gui_recording_enabled'],
-                                                   int(self.settings['screenshot_diff_threshold_percents']),
-                                                   int(self.settings['opencv_threshold']))
-        else:
-            QMessageBox.warning(self, 'No user name', 'Please type user name to connect with!')
+                    # Disable form elements and start
+                    self.elements_set_enabled(False, True)
+                    self.webinar_handler.start_browser(link, proxy)
+                    self.webinar_handler.start_handler(user_name, hello_message,
+                                                       float(self.settings['webinar_loop_interval_seconds']),
+                                                       self.settings['gui_recording_enabled'],
+                                                       int(self.settings['screenshot_diff_threshold_percents']),
+                                                       int(self.settings['opencv_threshold']))
+            else:
+                QMessageBox.warning(self, 'No user name', 'Please type user name to connect with!')
+
+        # Error
+        except Exception as e:
+            logging.error(e, exc_info=True)
+            QMessageBox.critical(self, 'Error', 'Error starting browser and other staff\n' + str(e))
 
     def stop_browser(self, from_button: bool):
         """
