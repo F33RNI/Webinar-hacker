@@ -37,10 +37,9 @@ INCLUDE_FILES = ['icon.png',
                  'gui.ui',
                  'README.md',
                  'LICENSE',
-                 'Model_ru_punctuator_h256_lr0.02.pcl',
                  'settings.json',
-                 'ru_punct',
-                 'stylesheet']
+                 'stylesheet',
+                 'ffmpeg.exe']
 
 # Files and folders to exclude from final build directory (dist/MAIN_FILE folder)
 EXCLUDE_FILES = []
@@ -104,6 +103,9 @@ if __name__ == '__main__':
     pyi_command.insert(0, '--copy-metadata')
 
     pyi_command.insert(0, 'numpy')
+    pyi_command.insert(0, '--copy-metadata')
+
+    pyi_command.insert(0, 'tokenizers')
     pyi_command.insert(0, '--copy-metadata')
 
     pyi_command.insert(0, 'tokenizers')

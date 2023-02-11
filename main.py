@@ -23,6 +23,7 @@ import signal
 import sys
 
 import psutil
+import requests
 from PyQt5 import uic, QtGui, QtCore
 from PyQt5.QtWidgets import QApplication, QMainWindow, QMessageBox, QVBoxLayout, QLineEdit, QPushButton, QWidget, \
     QHBoxLayout
@@ -31,7 +32,9 @@ import AudioHandler
 import LectureBuilder
 import WebinarHandler
 
-WEBINAR_HACKER_VERSION = 'beta_1.4.1'
+WEBINAR_HACKER_VERSION = 'beta_2.0.0'
+WEBINAR_HACKER_VERSION_CHECK_URL = 'https://api.github.com/repos/F33RNI/Webinar-Hacker/releases/latest'
+WEBINAR_HACKER_URL = 'https://github.com/F33RNI/Webinar-hacker'
 
 LOGGING_LEVEL = logging.INFO
 
@@ -107,6 +110,7 @@ class Window(QMainWindow):
     progress_bar_set_maximum_signal = QtCore.pyqtSignal(int)  # QtCore.Signal(int)
     lecture_building_done_signal = QtCore.pyqtSignal(str)  # QtCore.Signal(str)
     label_rec_set_stylesheet_signal = QtCore.pyqtSignal(str)  # QtCore.Signal(str)
+    label_device_signal = QtCore.pyqtSignal(str)  # QtCore.Signal(str)
 
     def __init__(self, settings_):
         super(Window, self).__init__()
@@ -127,6 +131,7 @@ class Window(QMainWindow):
         self.progress_bar_set_maximum_signal.connect(self.progressBar.setMaximum)
         self.lecture_building_done_signal.connect(self.lecture_building_done)
         self.label_rec_set_stylesheet_signal.connect(self.label_rec.setStyleSheet)
+        self.label_device_signal.connect(self.label_device.setText)
 
         # Initialize classes
         self.audio_handler = AudioHandler.AudioHandler(self.settings, self.progress_bar_audio_signal,
@@ -136,7 +141,8 @@ class Window(QMainWindow):
         self.lecture_builder = LectureBuilder.LectureBuilder(self.settings, self.elements_set_enabled_signal,
                                                              self.progress_bar_set_value_signal,
                                                              self.progress_bar_set_maximum_signal,
-                                                             self.lecture_building_done_signal)
+                                                             self.lecture_building_done_signal,
+                                                             self.label_device_signal)
 
         # Set window title
         self.setWindowTitle('Webinar hacker ' + WEBINAR_HACKER_VERSION)
@@ -175,8 +181,6 @@ class Window(QMainWindow):
         self.line_edit_proxy.setText(str(self.settings['gui_proxy']))
         self.slider_audio_threshold.setValue(int(self.settings['gui_audio_threshold_dbfs']))
         self.label_audio_threshold.setText(str(int(self.settings['gui_audio_threshold_dbfs'])) + ' dBFS')
-        self.spell_correction.setChecked(self.settings['gui_spell_correction_enabled'])
-        self.punctuation_correction.setChecked(self.settings['gui_punctuation_correction_enabled'])
 
         # Connect settings updater
         self.line_edit_link.textChanged.connect(self.update_settings)
@@ -186,11 +190,12 @@ class Window(QMainWindow):
         self.check_box_recording.clicked.connect(self.update_settings)
         self.line_edit_proxy.textChanged.connect(self.update_settings)
         self.slider_audio_threshold.valueChanged.connect(self.update_settings)
-        self.spell_correction.clicked.connect(self.update_settings)
-        self.punctuation_correction.clicked.connect(self.update_settings)
 
         # Refresh list of lectures
         self.lectures_refresh()
+
+        # Check app version
+        self.check_version()
 
     def update_settings(self):
         """
@@ -206,11 +211,28 @@ class Window(QMainWindow):
         self.settings['gui_proxy'] = str(str(self.line_edit_proxy.text()))
         self.settings['gui_audio_threshold_dbfs'] = int(self.slider_audio_threshold.value())
         self.label_audio_threshold.setText(str(int(self.slider_audio_threshold.value())) + ' dBFS')
-        self.settings['gui_spell_correction_enabled'] = self.spell_correction.isChecked()
-        self.settings['gui_punctuation_correction_enabled'] = self.punctuation_correction.isChecked()
 
         # Save to file
         save_json(SETTINGS_FILE, self.settings)
+
+    def check_version(self):
+        """
+        Checks app version
+        :return:
+        """
+        logging.info('Checking app version...')
+        request_result = requests.get(WEBINAR_HACKER_VERSION_CHECK_URL)
+        if request_result is not None:
+            try:
+                # Check version
+                tag_name = request_result.json()['tag_name']
+                if tag_name is not None and len(tag_name) > 1 and tag_name != WEBINAR_HACKER_VERSION:
+                    # Show update message
+                    QMessageBox.information(self, 'New version available', 'Please download new version: '
+                                            + tag_name + '\n' + WEBINAR_HACKER_URL)
+
+            except Exception as e:
+                logging.warning(e)
 
     def links_to_settings(self):
         """
@@ -459,6 +481,7 @@ class Window(QMainWindow):
         """
         logging.info('Enable gui elements? ' + str(enabled))
         self.line_edit_link.setEnabled(enabled)
+        self.btn_link_add.setEnabled(enabled)
         self.line_edit_name.setEnabled(enabled)
         self.line_edit_hello_message.setEnabled(enabled)
         self.check_box_hello_message.setEnabled(enabled)
@@ -470,9 +493,6 @@ class Window(QMainWindow):
         self.btn_refresh.setEnabled(enabled)
         self.btn_build.setEnabled(enabled)
         self.slider_audio_threshold.setEnabled(True if browser else enabled)
-        self.spell_correction.setEnabled(enabled)
-        self.punctuation_correction.setEnabled(enabled)
-        self.btn_link_add.setEnabled(enabled)
         for additional_links_widget in self.additional_links_widgets:
             if additional_links_widget is not None:
                 additional_links_widget.setEnabled(enabled)

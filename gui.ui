@@ -8,7 +8,7 @@
     <x>0</x>
     <y>0</y>
     <width>276</width>
-    <height>704</height>
+    <height>671</height>
    </rect>
   </property>
   <property name="font">
@@ -322,20 +322,6 @@
      </layout>
     </item>
     <item>
-     <widget class="QCheckBox" name="spell_correction">
-      <property name="text">
-       <string>Spell correction</string>
-      </property>
-     </widget>
-    </item>
-    <item>
-     <widget class="QCheckBox" name="punctuation_correction">
-      <property name="text">
-       <string>Add punctuation</string>
-      </property>
-     </widget>
-    </item>
-    <item>
      <layout class="QHBoxLayout" name="horizontalLayout_7">
       <item>
        <widget class="QPushButton" name="btn_build">
@@ -364,6 +350,13 @@
        </widget>
       </item>
      </layout>
+    </item>
+    <item>
+     <widget class="QLabel" name="label_device">
+      <property name="text">
+       <string>Using device: None</string>
+      </property>
+     </widget>
     </item>
    </layout>
   </widget>
