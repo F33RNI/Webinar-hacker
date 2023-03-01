@@ -233,8 +233,8 @@ if __name__ == '__main__':
                             print('Error excluding file!', e)
 
                     # Wait some time
-                    print('Waiting 1 second...')
-                    time.sleep(1)
+                    print('Waiting 3 seconds...')
+                    time.sleep(3)
 
                     # Rename final folder
                     os.rename('dist/' + FINAL_NAME, 'dist/' + FINAL_NAME + '-' + WEBINAR_HACKER_VERSION
