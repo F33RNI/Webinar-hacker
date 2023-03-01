@@ -28,7 +28,7 @@ from main import WEBINAR_HACKER_VERSION
 CLEAN_BUILD = True
 
 MAIN_FILE = 'main'
-FINAL_NAME = 'Webinar-hacker'
+FINAL_NAME = 'Lecture-hacker'
 
 # Text to add to the spec file
 SPEC_FILE_HEADER = 'import PyInstaller.config\n' \
@@ -118,6 +118,9 @@ if __name__ == '__main__':
     pyi_command.insert(0, 'whisper-timestamped')
     pyi_command.insert(0, '--copy-metadata')
 
+    pyi_command.insert(0, 'av')
+    pyi_command.insert(0, '--copy-metadata')
+
     pyi_command.insert(0, 'pyi-makespec')
 
     # Delete previous spec
@@ -154,7 +157,8 @@ if __name__ == '__main__':
                                           '\'sklearn.neighbors.quad_tree\','
                                           '\'sklearn.tree\','
                                           '\'sklearn.tree._utils\','
-                                          '\'pytorch\']')
+                                          '\'pytorch\','
+                                          '\'av.libs\']')
 
             site_packages_path = sysconfig.get_paths()['purelib']
 
@@ -166,7 +170,8 @@ if __name__ == '__main__':
                                   '(\'' + os.path.join(site_packages_path,'huggingsound').replace('\\','\\\\') + '\', \'huggingsound\'),'
                                   '(\'' + os.path.join(site_packages_path, 'datasets').replace('\\','\\\\') + '\', \'datasets\'),'
                                   '(\'' + os.path.join(site_packages_path, 'transformers').replace('\\','\\\\') + '\', \'transformers\'),'
-                                  '(\'' + os.path.join(site_packages_path, 'whisper').replace('\\','\\\\') + '\', \'whisper\')'
+                                  '(\'' + os.path.join(site_packages_path, 'whisper').replace('\\','\\\\') + '\', \'whisper\'),'
+                                  '(\'' + os.path.join(site_packages_path, 'av.libs').replace('\\','\\\\') + '\', \'av.libs\')'
                                   ']')
 
             # Set final name
