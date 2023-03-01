@@ -185,7 +185,8 @@ class WebinarHandler:
                 # Finished, timed out or closed
                 if browser_closed or timed_out or \
                         'AfterMeetingScreenContent' in self.browser.page_source or \
-                        'event_stopped' in self.browser.page_source:
+                        'event_stopped' in self.browser.page_source or \
+                        'Встреча завершена' in self.browser.page_source:
                     logging.warning('Event finished, timed out or browser closed! Closing browser...')
                     if self.browser is not None:
                         self.stop_browser_and_recording.emit()
