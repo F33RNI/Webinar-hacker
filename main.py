@@ -19,6 +19,7 @@ import ctypes
 import json
 import logging
 import os
+import shutil
 import signal
 import sys
 
@@ -26,13 +27,14 @@ import psutil
 import requests
 from PyQt5 import uic, QtGui, QtCore
 from PyQt5.QtWidgets import QApplication, QMainWindow, QMessageBox, QVBoxLayout, QLineEdit, QPushButton, QWidget, \
-    QHBoxLayout
+    QHBoxLayout, QFileDialog
 
 import AudioHandler
 import LectureBuilder
+import VideoAudioReader
 import WebinarHandler
 
-WEBINAR_HACKER_VERSION = 'beta_2.1.1'
+WEBINAR_HACKER_VERSION = 'beta_3.0.0'
 WEBINAR_HACKER_VERSION_CHECK_URL = 'https://api.github.com/repos/F33RNI/Webinar-Hacker/releases/latest'
 WEBINAR_HACKER_URL = 'https://github.com/F33RNI/Webinar-hacker'
 
@@ -41,6 +43,10 @@ LOGGING_LEVEL = logging.INFO
 SETTINGS_FILE = 'settings.json'
 
 STYLESHEET_FILE = 'stylesheet/Toolery.qss'
+
+ENABLE_DISABLE_GUI_FROM_LECTURE_BUILDER = 0
+ENABLE_DISABLE_GUI_FROM_BROWSER = 1
+ENABLE_DISABLE_GUI_FROM_VIDEOAUDIO = 2
 
 
 def logging_setup():
@@ -108,11 +114,14 @@ class Window(QMainWindow):
     progress_bar_audio_signal = QtCore.pyqtSignal(int)  # QtCore.Signal(int)
     progress_bar_set_value_signal = QtCore.pyqtSignal(int)  # QtCore.Signal(int)
     progress_bar_set_maximum_signal = QtCore.pyqtSignal(int)  # QtCore.Signal(int)
-    lecture_building_done_signal = QtCore.pyqtSignal(str)  # QtCore.Signal(str)
+    lecture_copy_signal = QtCore.pyqtSignal(str)  # QtCore.Signal(str)
     label_rec_set_stylesheet_signal = QtCore.pyqtSignal(str)  # QtCore.Signal(str)
     label_device_signal = QtCore.pyqtSignal(str)  # QtCore.Signal(str)
     label_current_link_time_signal = QtCore.pyqtSignal(str)  # QtCore.Signal(str)
     label_time_left_signal = QtCore.pyqtSignal(str)  # QtCore.Signal(str)
+    label_current_video_audio_time_signal = QtCore.pyqtSignal(str)  # QtCore.Signal(str)
+    progress_bar_video_audio_signal = QtCore.pyqtSignal(int)  # QtCore.Signal(int)
+    video_audio_decoding_ended_signal = QtCore.pyqtSignal(str)  # QtCore.Signal(str)
 
     def __init__(self, settings_):
         super(Window, self).__init__()
@@ -131,26 +140,35 @@ class Window(QMainWindow):
         self.progress_bar_audio_signal.connect(self.progressBar_audio.setValue)
         self.progress_bar_set_value_signal.connect(self.progressBar.setValue)
         self.progress_bar_set_maximum_signal.connect(self.progressBar.setMaximum)
-        self.lecture_building_done_signal.connect(self.lecture_building_done)
+        self.lecture_copy_signal.connect(self.lecture_copy)
         self.label_rec_set_stylesheet_signal.connect(self.label_rec.setStyleSheet)
         self.label_device_signal.connect(self.label_device.setText)
         self.label_current_link_time_signal.connect(self.label_current_link_time.setText)
         self.label_time_left_signal.connect(self.label_time_left.setText)
+        self.label_current_video_audio_time_signal.connect(self.label_current_video_time.setText)
+        self.progress_bar_video_audio_signal.connect(self.progressBar_videoaudio.setValue)
+        self.video_audio_decoding_ended_signal.connect(self.video_audio_decoding_ended)
 
         # Initialize classes
         self.audio_handler = AudioHandler.AudioHandler(self.settings, self.progress_bar_audio_signal,
                                                        self.label_rec_set_stylesheet_signal)
-        self.webinar_handler = WebinarHandler.WebinarHandler(self.audio_handler, self.stop_browser_and_recording,
-                                                             self.preview_label, self.label_current_link_time_signal)
+        self.webinar_handler = WebinarHandler.WebinarHandler(self.audio_handler, self.settings,
+                                                             self.stop_browser_and_recording, self.preview_label,
+                                                             self.label_current_link_time_signal)
+        self.video_audio_reader = VideoAudioReader.VideoAudioReader(self.settings, self.audio_handler,
+                                                                    self.preview_label,
+                                                                    self.label_current_video_audio_time_signal,
+                                                                    self.progress_bar_video_audio_signal,
+                                                                    self.video_audio_decoding_ended_signal)
         self.lecture_builder = LectureBuilder.LectureBuilder(self.settings, self.elements_set_enabled_signal,
                                                              self.progress_bar_set_value_signal,
                                                              self.progress_bar_set_maximum_signal,
-                                                             self.lecture_building_done_signal,
+                                                             self.lecture_copy_signal,
                                                              self.label_device_signal,
                                                              self.label_time_left_signal)
 
         # Set window title
-        self.setWindowTitle('Webinar hacker ' + WEBINAR_HACKER_VERSION)
+        self.setWindowTitle('Lecture hacker ' + WEBINAR_HACKER_VERSION)
 
         # Set icon
         self.setWindowIcon(QtGui.QIcon('icon.png'))
@@ -167,10 +185,11 @@ class Window(QMainWindow):
 
         # Connect buttons
         self.btn_link_add.clicked.connect(lambda: self.link_add(''))
-        self.btn_browser_open.clicked.connect(lambda: self.start_browser(True))
-        self.btn_browser_stop.clicked.connect(lambda: self.stop_browser(True))
         self.btn_refresh.clicked.connect(self.lectures_refresh)
         self.btn_build.clicked.connect(self.lecture_build)
+        self.btn_videoaudio_browse.clicked.connect(self.select_video_audio_file)
+        self.btn_start.clicked.connect(self.start_)
+        self.btn_stop.clicked.connect(self.stop_)
 
         # Set gui elements from settings
         gui_links = self.settings['gui_links']
@@ -185,10 +204,13 @@ class Window(QMainWindow):
         self.check_box_recording.setChecked(self.settings['gui_recording_enabled'])
         self.line_edit_proxy.setText(str(self.settings['gui_proxy']))
         gui_max_event_time = int(self.settings['gui_max_event_time_milliseconds']) / 1000 / 60
+        self.check_box_max_link_time.setChecked(self.settings['gui_max_event_time_enabled'])
         self.spin_box_time_hours.setValue(int(gui_max_event_time / 60))
         self.spin_box_time_minutes.setValue(int(gui_max_event_time % 60))
         self.slider_audio_threshold.setValue(int(self.settings['gui_audio_threshold_dbfs']))
         self.label_audio_threshold.setText(str(int(self.settings['gui_audio_threshold_dbfs'])) + ' dBFS')
+        self.line_edit_videoaudio.setText(str(self.settings['gui_video_audio_file']))
+        self.tabWidget.setCurrentIndex(int(self.settings['gui_tabs_current_index']))
 
         # Connect settings updater
         self.line_edit_link.textChanged.connect(self.update_settings)
@@ -198,8 +220,11 @@ class Window(QMainWindow):
         self.check_box_recording.clicked.connect(self.update_settings)
         self.line_edit_proxy.textChanged.connect(self.update_settings)
         self.slider_audio_threshold.valueChanged.connect(self.update_settings)
+        self.check_box_max_link_time.clicked.connect(self.update_settings)
         self.spin_box_time_hours.valueChanged.connect(self.update_settings)
         self.spin_box_time_minutes.valueChanged.connect(self.update_settings)
+        self.line_edit_videoaudio.textChanged.connect(self.update_settings)
+        self.tabWidget.currentChanged.connect(self.update_settings)
 
         # Refresh list of lectures
         self.lectures_refresh()
@@ -219,10 +244,13 @@ class Window(QMainWindow):
         self.settings['gui_hello_message_enabled'] = self.check_box_hello_message.isChecked()
         self.settings['gui_recording_enabled'] = self.check_box_recording.isChecked()
         self.settings['gui_proxy'] = str(str(self.line_edit_proxy.text()))
+        self.settings['gui_max_event_time_enabled'] = self.check_box_max_link_time.isChecked()
         self.settings['gui_max_event_time_milliseconds'] = (int(self.spin_box_time_hours.value()) * 60
                                                             + int(self.spin_box_time_minutes.value())) * 60 * 1000
         self.settings['gui_audio_threshold_dbfs'] = int(self.slider_audio_threshold.value())
         self.label_audio_threshold.setText(str(int(self.slider_audio_threshold.value())) + ' dBFS')
+        self.settings['gui_video_audio_file'] = str(self.line_edit_videoaudio.text())
+        self.settings['gui_tabs_current_index'] = int(self.tabWidget.currentIndex())
 
         # Save to file
         save_json(SETTINGS_FILE, self.settings)
@@ -245,6 +273,27 @@ class Window(QMainWindow):
 
             except Exception as e:
                 logging.warning(e)
+
+    def start_(self):
+        """
+        Start button callback
+        :return:
+        """
+        # Webinar
+        if int(self.tabWidget.currentIndex()) == 0:
+            self.start_browser(from_button=True)
+
+        # Video / Audio file
+        elif int(self.tabWidget.currentIndex()) == 1:
+            self.start_video_audio_decoding()
+
+    def stop_(self):
+        """
+        Stop button callback
+        :return:
+        """
+        self.stop_video_audio_decoding()
+        self.stop_browser(True)
 
     def links_to_settings(self):
         """
@@ -331,16 +380,6 @@ class Window(QMainWindow):
                 # Write to settings
                 self.update_settings()
 
-    def lecture_building_done(self, lecture_name: str):
-        """
-        Shows info about saved lecture
-        :return:
-        """
-        lectures_directory = str(self.settings['lectures_directory_name'])
-        lecture_file = lecture_name + '.docx'
-        QMessageBox.information(self, 'Done!', 'The lecture was successfully built!\nFile: ' +
-                                os.path.join(lectures_directory, lecture_file))
-
     def lectures_refresh(self):
         """
         Searches for lectures
@@ -372,6 +411,69 @@ class Window(QMainWindow):
         self.combo_box_recordings.clear()
         self.combo_box_recordings.addItems(lectures)
 
+    def start_video_audio_decoding(self):
+        """
+        Starts video/audio decoding
+        :return:
+        """
+        # Check if file exists
+        video_audio_file = str(self.settings['gui_video_audio_file']).strip()
+        if not os.path.exists(video_audio_file):
+            if len(video_audio_file) > 0:
+                QMessageBox.warning(self, 'Not exists', 'File ' + video_audio_file + ' not exists!')
+            else:
+                QMessageBox.warning(self, 'No file', 'Please select video / audio file!')
+        else:
+            self.elements_set_enabled(False, ENABLE_DISABLE_GUI_FROM_VIDEOAUDIO)
+            self.audio_handler.recording_start(AudioHandler.RECORD_FROM_FRAMES,
+                                               os.path.splitext(os.path.basename(video_audio_file))[0])
+            self.video_audio_reader.start_processing_file(video_audio_file)
+
+    def stop_video_audio_decoding(self):
+        """
+        Aborts video/audio decoding
+        :return:
+        """
+        self.video_audio_reader.abort_processing_file()
+        self.elements_set_enabled(True, ENABLE_DISABLE_GUI_FROM_VIDEOAUDIO)
+
+    def video_audio_decoding_ended(self, name=None):
+        """
+        Shows ending info after decoding finishes and enables gui elements
+        :param name:
+        :return:
+        """
+        if name is None:
+            QMessageBox.warning(self, 'No frames!', 'No frames processed!')
+        else:
+            QMessageBox.information(self, 'Done!', 'File ' + name + ' decoded!\nNow you can build lecture from it')
+        self.elements_set_enabled(True, ENABLE_DISABLE_GUI_FROM_VIDEOAUDIO)
+        self.lectures_refresh()
+
+    def select_video_audio_file(self):
+        """
+        Opens file dialog for video/audio file
+        :return:
+        """
+        options = QFileDialog.Options()
+        options &= ~QFileDialog.DontUseNativeDialog
+        last_file = str(self.settings['gui_video_audio_file']).strip()
+        if not os.path.exists(last_file):
+            last_file = ''
+        open_filename, _ = QFileDialog.getOpenFileName(self, 'Open video/audio lecture',
+                                                       last_file,
+                                                       'Media files (*.mp4 *.mkv *.avi *.3gp *.mp3 *.m4a *.wav)'
+                                                       ';;All Files (*.*)',
+                                                       options=options)
+
+        if open_filename is not None and open_filename:
+            # Set to field
+            self.line_edit_videoaudio.setText(str(open_filename).strip())
+
+            # Save to settings
+            self.settings['gui_video_audio_file'] = str(open_filename).strip()
+            self.update_settings()
+
     def lecture_build(self):
         """
         Starts building lecture
@@ -381,11 +483,46 @@ class Window(QMainWindow):
         logging.info('Selected lecture: ' + selected_lecture)
         if len(selected_lecture) > 0:
             # Disable all gui elements
-            self.elements_set_enabled(False, False)
+            self.elements_set_enabled(False, ENABLE_DISABLE_GUI_FROM_LECTURE_BUILDER)
 
             # Start building lecture
             self.lecture_builder.start_building_lecture(str(self.settings['recordings_directory_name'])
                                                         + '/' + selected_lecture, selected_lecture)
+
+    def lecture_copy(self, lecture_file):
+        """
+        Copies lecture from lecture_file to whatever user selected
+        :param lecture_file: original lecture file (in lectures/ directory)
+        :return:
+        """
+        # Ask for file
+        options = QFileDialog.Options()
+        options &= ~QFileDialog.DontUseNativeDialog
+        save_filename, _ = QFileDialog.getSaveFileName(self, 'Save lecture',
+                                                       os.path.join(str(self.settings['save_lecture_to_directory']),
+                                                                    os.path.basename(lecture_file)),
+                                                       'Word document (*.docx);;All Files (*.*)', options=options)
+
+        saved_to = ''
+        if save_filename is not None and save_filename and len(save_filename) > 1:
+            saved_to = save_filename
+
+            # Copy file
+            try:
+                shutil.copyfile(lecture_file, save_filename)
+            except Exception as e:
+                logging.warning('Error copying lecture file! ' + str(e))
+
+            # Save directory for future usages
+            self.settings['save_lecture_to_directory'] = os.path.dirname(save_filename)
+            self.update_settings()
+
+        # Show confirmation info message box
+        if len(saved_to) > 0:
+            info_text = 'Saved to: ' + saved_to + '\n\nAnd to: ' + lecture_file
+        else:
+            info_text = 'Saved to: ' + lecture_file
+        QMessageBox.information(self, 'Done!', info_text)
 
     def start_browser(self, from_button: bool):
         """
@@ -403,7 +540,7 @@ class Window(QMainWindow):
             if self.current_link_index >= len(self.settings['gui_links']):
                 logging.info('No more links')
                 QMessageBox.information(self, 'No links!', 'No more available links provided')
-                self.elements_set_enabled(True, True)
+                self.elements_set_enabled(True, ENABLE_DISABLE_GUI_FROM_BROWSER)
                 return
 
             # Get link
@@ -415,13 +552,10 @@ class Window(QMainWindow):
             # Can not get new link
             if len(link) <= 0:
                 QMessageBox.warning(self, 'No links!', 'No more available links provided')
-                self.elements_set_enabled(True, True)
+                self.elements_set_enabled(True, ENABLE_DISABLE_GUI_FROM_BROWSER)
                 return
 
             user_name = str(self.settings['gui_name']).strip()
-            hello_message = str(self.settings['gui_hello_message']) \
-                .strip() if self.settings['gui_hello_message_enabled'] else ''
-            proxy = str(self.settings['gui_proxy']).strip()
 
             # Check link and username
             if len(user_name) > 0:
@@ -445,14 +579,9 @@ class Window(QMainWindow):
                         self.audio_handler.open_stream()
 
                     # Disable form elements and start
-                    self.elements_set_enabled(False, True)
-                    self.webinar_handler.start_browser(link, proxy)
-                    self.webinar_handler.start_handler(user_name, hello_message,
-                                                       float(self.settings['webinar_loop_interval_seconds']),
-                                                       self.settings['gui_recording_enabled'],
-                                                       int(self.settings['screenshot_diff_threshold_percents']),
-                                                       int(self.settings['opencv_threshold']),
-                                                       int(self.settings['gui_max_event_time_milliseconds']))
+                    self.elements_set_enabled(False, ENABLE_DISABLE_GUI_FROM_BROWSER)
+                    self.webinar_handler.start_browser(link)
+                    self.webinar_handler.start_handler(user_name)
             else:
                 QMessageBox.warning(self, 'No user name', 'Please type user name to connect with!')
 
@@ -490,16 +619,18 @@ class Window(QMainWindow):
         # No more links
         else:
             # Enable GUI elements
-            self.elements_set_enabled(True, True)
+            self.elements_set_enabled(True, ENABLE_DISABLE_GUI_FROM_BROWSER)
 
-    def elements_set_enabled(self, enabled: bool, browser=False):
+    def elements_set_enabled(self, enabled: bool, enable_disable_from=ENABLE_DISABLE_GUI_FROM_LECTURE_BUILDER):
         """
         Enables or disables gui elements
         :param enabled:
-        :param browser: from browser or lecture builder
+        :param enable_disable_from: ENABLE_DISABLE_GUI_FROM_LECTURE_BUILDER
         :return:
         """
         logging.info('Enable gui elements? ' + str(enabled))
+
+        # Independent elements
         self.line_edit_link.setEnabled(enabled)
         self.btn_link_add.setEnabled(enabled)
         self.line_edit_name.setEnabled(enabled)
@@ -507,17 +638,40 @@ class Window(QMainWindow):
         self.check_box_hello_message.setEnabled(enabled)
         self.check_box_recording.setEnabled(enabled)
         self.line_edit_proxy.setEnabled(enabled)
-        self.spin_box_time_hours.setEnabled(enabled)
-        self.spin_box_time_minutes.setEnabled(enabled)
-        self.btn_browser_open.setEnabled(enabled)
-        self.btn_browser_stop.setEnabled(not enabled if browser else False)
         self.combo_box_recordings.setEnabled(enabled)
         self.btn_refresh.setEnabled(enabled)
         self.btn_build.setEnabled(enabled)
-        self.slider_audio_threshold.setEnabled(True if browser else enabled)
+        self.line_edit_videoaudio.setEnabled(enabled)
+        self.btn_videoaudio_browse.setEnabled(enabled)
+        self.btn_start.setEnabled(enabled)
+        self.tabWidget.tabBar().setEnabled(enabled)
         for additional_links_widget in self.additional_links_widgets:
             if additional_links_widget is not None:
                 additional_links_widget.setEnabled(enabled)
+
+        # Function call from lecture builder
+        if enable_disable_from == ENABLE_DISABLE_GUI_FROM_LECTURE_BUILDER:
+            self.check_box_max_link_time.setEnabled(enabled)
+            self.spin_box_time_hours.setEnabled(enabled)
+            self.spin_box_time_minutes.setEnabled(enabled)
+            self.slider_audio_threshold.setEnabled(enabled)
+            self.btn_stop.setEnabled(False)
+
+        # Function call from browser handlers
+        elif enable_disable_from == ENABLE_DISABLE_GUI_FROM_BROWSER:
+            self.check_box_max_link_time.setEnabled(True)
+            self.spin_box_time_hours.setEnabled(True)
+            self.spin_box_time_minutes.setEnabled(True)
+            self.slider_audio_threshold.setEnabled(True)
+            self.btn_stop.setEnabled(not enabled)
+
+        # Function call from video handlers
+        elif enable_disable_from == ENABLE_DISABLE_GUI_FROM_VIDEOAUDIO:
+            self.check_box_max_link_time.setEnabled(enabled)
+            self.spin_box_time_hours.setEnabled(enabled)
+            self.spin_box_time_minutes.setEnabled(enabled)
+            self.slider_audio_threshold.setEnabled(True)
+            self.btn_stop.setEnabled(not enabled)
 
     def closeEvent(self, event):
         """

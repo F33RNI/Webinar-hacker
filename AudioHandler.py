@@ -39,6 +39,9 @@ color: #454544;
 font-weight: bold;
 font-size: 13px;'''
 
+RECORD_FROM_DEVICE = 0
+RECORD_FROM_FRAMES = 1
+
 
 def s_mag_to_dbfs(data_s_mag):
     """
@@ -132,36 +135,40 @@ class AudioHandler:
             except Exception as e:
                 logging.warning(e)
 
-    def recording_start(self):
+    def recording_start(self, record_from=RECORD_FROM_DEVICE, recording_name=None):
         """
         Generates self.screenshots_dir and sets self.recording_started_time and sets recording flag
+        :param record_from: RECORD_FROM_DEVICE or RECORD_FROM_FRAMES
+        :param recording_name: name of file or None for using timestamp
         :return:
         """
         # Generate filenames
-        timestamp_str = datetime.now().strftime(self.settings['timestamp_format'])
-        logging.info('Recording into: ' + timestamp_str)
+        if recording_name is None:
+            recording_name = datetime.now().strftime(self.settings['timestamp_format'])
+        logging.info('Recording into: ' + recording_name)
 
         # Create recording directory
-        if not os.path.exists(str(self.settings['recordings_directory_name']) + '/' + timestamp_str + '/'):
-            os.makedirs(str(self.settings['recordings_directory_name']) + '/' + timestamp_str + '/')
+        if not os.path.exists(str(self.settings['recordings_directory_name']) + '/' + recording_name + '/'):
+            os.makedirs(str(self.settings['recordings_directory_name']) + '/' + recording_name + '/')
 
         # Create screenshots directory
-        self.screenshots_dir = str(self.settings['recordings_directory_name']) + '/' + timestamp_str + '/' \
+        self.screenshots_dir = str(self.settings['recordings_directory_name']) + '/' + recording_name + '/' \
                                + str(self.settings['screenshots_directory_name']) + '/'
         if not os.path.exists(self.screenshots_dir):
             os.makedirs(self.screenshots_dir)
 
         # Create audio directory
-        self.audio_dir = str(self.settings['recordings_directory_name']) + '/' + timestamp_str + '/' \
+        self.audio_dir = str(self.settings['recordings_directory_name']) + '/' + recording_name + '/' \
                          + str(self.settings['audio_directory_name']) + '/'
         if not os.path.exists(self.audio_dir):
             os.makedirs(self.audio_dir)
 
+        if record_from == RECORD_FROM_DEVICE:
+            # Save start time
+            self.recording_started_time = int(time.time() * 1000)
+
         # Set recording flag
         self.is_recording = True
-
-        # Save start time
-        self.recording_started_time = int(time.time() * 1000)
 
         # Reset audio volume progress bar
         self.progress_bar_audio_signal.emit(-60)
@@ -203,76 +210,85 @@ class AudioHandler:
             for channel_n in range(1, self.recording_channels):
                 input_data_mono = np.add(input_data_mono, data_per_channels[channel_n].flatten())
             input_data_mono = np.divide(input_data_mono, self.recording_channels)
-
-            # Calculate audio volume in dBFS
-            dbfs_value = s_mag_to_dbfs((abs(np.min(input_data_mono)) + abs(np.max(input_data_mono))) / 2.)
-
-            # Emit to progress bar
-            dbfs_value_progress_bar = int(dbfs_value)
-            if dbfs_value_progress_bar < -60:
-                dbfs_value_progress_bar = -60
-            elif dbfs_value_progress_bar > 0:
-                dbfs_value_progress_bar = 0
-            self.progress_bar_audio_signal.emit(dbfs_value_progress_bar)
-
-            # Volume > threshold -> reset counter
-            if dbfs_value >= self.settings['gui_audio_threshold_dbfs']:
-                self.chunks_recorded_counter = 0
-
-            # Recording
-            if self.chunks_recorded_counter < int(self.settings['audio_recording_chunks_min']):
-                if self.wave_file is None:
-                    # Start WAV file
-                    wave_name = str(int(time.time() * 1000) - self.recording_started_time) + WAVE_FILE_EXTENSION
-                    wave_file_path = self.audio_dir + wave_name
-                    logging.info('Starting audio recording with name: ' + wave_name)
-                    self.wave_file = wave.open(wave_file_path, 'wb')
-                    self.wave_file.setnchannels(1)  # Mono
-                    self.wave_file.setsampwidth(self.py_audio.get_sample_size(pyaudio.paInt16))  # PCM16
-                    self.wave_file.setframerate(int(self.settings['audio_wav_sampling_rate']))
-
-                    # Initialize temp buffer
-                    self.audio_samples_temp = np.empty(0, dtype=np.int16)
-
-                    # Set label background
-                    self.label_rec_set_stylesheet_signal.emit(RECORDING_STYLE_SHEET)
-
-                # Write to buffer
-                self.audio_samples_temp = np.append(self.audio_samples_temp, input_data_mono)
-
-                # Increment counter
-                self.chunks_recorded_counter += 1
-
-            # Stop recording
-            else:
-                if self.wave_file is not None:
-                    logging.info('Writing audio buffer to file...')
-
-                    # Resample buffered data
-                    self.audio_samples_temp = librosa.resample(self.audio_samples_temp, orig_sr=self.sampling_rate,
-                                                               target_sr=int(self.settings['audio_wav_sampling_rate']),
-                                                               res_type=str(self.settings['audio_wav_resampling_type']))
-
-                    # Covert to PCM
-                    self.audio_samples_temp = np.multiply(self.audio_samples_temp[: -1], PCM_MAX).astype(np.int16)
-
-                    # Write to file
-                    if self.wave_file is not None:
-                        self.wave_file.writeframesraw(self.audio_samples_temp.tobytes())
-
-                    # Clear buffer
-                    self.audio_samples_temp = np.empty(0, dtype=np.int16)
-
-                    # Close file
-                    logging.info('Closing file')
-                    self.wave_file.close()
-                    self.wave_file = None
-
-                    # Collect garbage
-                    gc.collect()
-
-                    # Set label background
-                    self.label_rec_set_stylesheet_signal.emit(NOT_RECORDING_STYLE_SHEET)
+            self.process_mono_data(input_data_mono)
 
         # Continue capturing audio
         return in_data, pyaudio.paContinue
+
+    def process_mono_data(self, input_data_mono, wave_name=None):
+        """
+        Processes mono audio frames
+        :param input_data_mono: numpy 1D array of floats (any size)
+        :param wave_name: name of file to record
+        :return:
+        """
+        # Calculate audio volume in dBFS
+        dbfs_value = s_mag_to_dbfs((abs(np.min(input_data_mono)) + abs(np.max(input_data_mono))) / 2.)
+
+        # Emit to progress bar
+        dbfs_value_progress_bar = int(dbfs_value)
+        if dbfs_value_progress_bar < -60:
+            dbfs_value_progress_bar = -60
+        elif dbfs_value_progress_bar > 0:
+            dbfs_value_progress_bar = 0
+        self.progress_bar_audio_signal.emit(dbfs_value_progress_bar)
+
+        # Volume > threshold -> reset counter
+        if dbfs_value >= self.settings['gui_audio_threshold_dbfs']:
+            self.chunks_recorded_counter = 0
+
+        # Recording
+        if self.chunks_recorded_counter < int(self.settings['audio_recording_chunks_min']):
+            if self.wave_file is None:
+                # Start WAV file
+                if wave_name is None:
+                    wave_name = str(int(time.time() * 1000) - self.recording_started_time) + WAVE_FILE_EXTENSION
+                wave_file_path = os.path.join(self.audio_dir, wave_name)
+                logging.info('Starting audio recording with name: ' + wave_name)
+                self.wave_file = wave.open(wave_file_path, 'wb')
+                self.wave_file.setnchannels(1)  # Mono
+                self.wave_file.setsampwidth(2)  # PCM16
+                self.wave_file.setframerate(int(self.settings['audio_wav_sampling_rate']))
+
+                # Initialize temp buffer
+                self.audio_samples_temp = np.empty(0, dtype=np.int16)
+
+                # Set label background
+                self.label_rec_set_stylesheet_signal.emit(RECORDING_STYLE_SHEET)
+
+            # Write to buffer
+            self.audio_samples_temp = np.append(self.audio_samples_temp, input_data_mono)
+
+            # Increment counter
+            self.chunks_recorded_counter += 1
+
+        # Stop recording
+        else:
+            if self.wave_file is not None:
+                logging.info('Writing audio buffer to file...')
+
+                # Resample buffered data
+                self.audio_samples_temp = librosa.resample(self.audio_samples_temp, orig_sr=self.sampling_rate,
+                                                           target_sr=int(self.settings['audio_wav_sampling_rate']),
+                                                           res_type=str(self.settings['audio_wav_resampling_type']))
+
+                # Covert to PCM
+                self.audio_samples_temp = np.multiply(self.audio_samples_temp[: -1], PCM_MAX).astype(np.int16)
+
+                # Write to file
+                if self.wave_file is not None:
+                    self.wave_file.writeframesraw(self.audio_samples_temp.tobytes())
+
+                # Clear buffer
+                self.audio_samples_temp = np.empty(0, dtype=np.int16)
+
+                # Close file
+                logging.info('Closing file')
+                self.wave_file.close()
+                self.wave_file = None
+
+                # Collect garbage
+                gc.collect()
+
+                # Set label background
+                self.label_rec_set_stylesheet_signal.emit(NOT_RECORDING_STYLE_SHEET)

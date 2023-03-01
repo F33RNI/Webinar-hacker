@@ -57,12 +57,13 @@ def resize_keep_ratio(source_image, target_width, target_height, interpolation=c
 
 
 class WebinarHandler:
-    def __init__(self, audio_handler, stop_browser_and_recording: QtCore.pyqtSignal, preview_label,
+    def __init__(self, audio_handler, settings, stop_browser_and_recording: QtCore.pyqtSignal, preview_label,
                  label_current_link_time_signal: QtCore.pyqtSignal):
         """
         Initializes WebinarHandler class
         """
         self.audio_handler = audio_handler
+        self.settings = settings
         self.stop_browser_and_recording = stop_browser_and_recording
         self.preview_label = preview_label
         self.label_current_link_time_signal = label_current_link_time_signal
@@ -71,25 +72,18 @@ class WebinarHandler:
         self.handler_loop_running = False
 
         self.user_name = ''
-        self.hello_message = ''
-        self.webinar_loop_interval_seconds = 0.
-        self.recording_enabled = False
-
-        self.screenshot_diff_threshold_percents = 0
-        self.opencv_threshold = 0
-        self.max_event_time = 0
         self.opencv_image_prev = None
 
-    def start_browser(self, link: str, proxy: str):
+    def start_browser(self, link: str):
         """
         Starts browser
         :param link: URL
-        :param proxy: proxy
         :return:
         """
         if self.browser is None:
             logging.info('Starting browser... Please wait')
             chrome_options = webdriver.ChromeOptions()
+            proxy = str(self.settings['gui_proxy']).strip()
             if len(proxy) > 0:
                 chrome_options.add_argument('--proxy-server=%s' % proxy)
             chrome_options.add_argument("--disable-infobars")
@@ -121,29 +115,16 @@ class WebinarHandler:
         except Exception as e:
             logging.warning(e)
 
-    def start_handler(self, user_name: str, hello_message: str,
-                      webinar_loop_interval_seconds: float, recording_enabled: bool,
-                      screenshot_diff_threshold_percents: int, opencv_threshold: int, max_event_time: int):
+    def start_handler(self, user_name: str):
         """
         Starts webinar handler
         :param user_name: Connect with this name (not empty)
-        :param hello_message: Message to send after connecting (set to empty to disable it)
-        :param webinar_loop_interval_seconds: Webinar handler loop interval
-        :param recording_enabled: Enable auto recording
-        :param screenshot_diff_threshold_percents: how many % screenshots should diff to save screenshot
-        :param opencv_threshold: cv2.threshold function
-        :param max_event_time: how long to wait before closing current event (0 to disable)
         :return:
         """
         # Set username, hello message and loop interval
         self.user_name = user_name
-        self.hello_message = hello_message
-        self.webinar_loop_interval_seconds = webinar_loop_interval_seconds
-        self.recording_enabled = recording_enabled
-        self.screenshot_diff_threshold_percents = screenshot_diff_threshold_percents
-        self.opencv_threshold = opencv_threshold
-        self.max_event_time = max_event_time
 
+        # Clear previous image
         self.opencv_image_prev = None
 
         # Start webinar handler
@@ -197,7 +178,7 @@ class WebinarHandler:
 
                 # Check if timed out
                 timed_out = False
-                if time_passed > self.max_event_time > 0:
+                if time_passed > int(self.settings['gui_max_event_time_milliseconds']) > 0:
                     logging.info('Timeout!')
                     timed_out = True
 
@@ -277,7 +258,10 @@ class WebinarHandler:
 
                 # Send hellow message stage
                 elif handler_stage == HANDLER_STAGE_SEND_HELLO_MESSAGE:
-                    if len(self.hello_message) > 0:
+                    hello_message = str(self.settings['gui_hello_message']).strip() \
+                        if self.settings['gui_hello_message_enabled'] else ''
+                    recording_enabled = self.settings['gui_recording_enabled']
+                    if len(hello_message) > 0:
                         # Chat class
                         chat_inputs = self.browser.find_elements(By.CLASS_NAME, 'editable-input')
                         for chat_input in chat_inputs:
@@ -291,19 +275,19 @@ class WebinarHandler:
 
                             # Send hello message
                             if chat_input_div is not None:
-                                logging.info('Sending ' + self.hello_message + ' to the chat...')
+                                logging.info('Sending ' + hello_message + ' to the chat...')
 
                                 # Click into message field
                                 chat_input_div.click()
 
                                 # Send hellow message
-                                chat_input_div.send_keys(self.hello_message, Keys.ENTER)
+                                chat_input_div.send_keys(hello_message, Keys.ENTER)
 
                                 # Switch to IDLE
                                 handler_stage = HANDLER_STAGE_IDLE
 
                                 # Start recording
-                                if self.recording_enabled:
+                                if recording_enabled:
                                     self.audio_handler.recording_start()
 
                     # No hello message -> switch to IDLE stage and start recording
@@ -311,7 +295,7 @@ class WebinarHandler:
                         handler_stage = HANDLER_STAGE_IDLE
 
                         # Start recording
-                        if self.recording_enabled:
+                        if recording_enabled:
                             self.audio_handler.recording_start()
 
                 # IDLE stage -> handle attention checks
@@ -378,7 +362,8 @@ class WebinarHandler:
                             self.opencv_image_prev = opencv_image
 
                             # Apply threshold
-                            _, thresh = cv2.threshold(diff, self.opencv_threshold, 255, cv2.THRESH_BINARY)
+                            _, thresh = cv2.threshold(diff, int(self.settings['opencv_threshold']),
+                                                      255, cv2.THRESH_BINARY)
 
                             # Calculate difference in percents
                             diff_percents = (cv2.countNonZero(thresh) /
@@ -386,7 +371,7 @@ class WebinarHandler:
                             logging.info('Difference: ' + str(int(diff_percents)) + '%')
 
                             # Save screenshot
-                            if diff_percents >= self.screenshot_diff_threshold_percents:
+                            if diff_percents >= int(self.settings['screenshot_diff_threshold_percents']):
                                 screenshot_name = str(int(time.time() * 1000) - self.audio_handler
                                                       .recording_started_time) + SCREENSHOT_EXTENSION
                                 logging.info('Saving current screenshot as ' + screenshot_name + '...')
@@ -397,7 +382,7 @@ class WebinarHandler:
                                                                 self.preview_label.size().height())
 
                             # Put Saving... text on top of the image
-                            if diff_percents >= self.screenshot_diff_threshold_percents:
+                            if diff_percents >= int(self.settings['screenshot_diff_threshold_percents']):
                                 cv2.putText(preview_resized, 'Saving...', (10, preview_resized.shape[0] // 2),
                                             cv2.FONT_HERSHEY_SIMPLEX, 2, SAVING_TEXT_COLOR, 2, cv2.LINE_AA)
 
@@ -414,4 +399,4 @@ class WebinarHandler:
                 logging.warning(e)
 
             # Wait for next loop cycle
-            time.sleep(self.webinar_loop_interval_seconds)
+            time.sleep(float(self.settings['loop_interval_seconds']))

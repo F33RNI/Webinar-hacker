@@ -30,13 +30,13 @@ WAVE_FILE_SIZE_MIN_BYTES = 100
 
 class LectureBuilder:
     def __init__(self, settings, elements_set_enabled_signal, progress_bar_set_value_signal,
-                 progress_bar_set_maximum_signal, lecture_building_done_signal, label_device_signal,
+                 progress_bar_set_maximum_signal, lecture_copy_signal, label_device_signal,
                  label_time_left_signal):
         self.settings = settings
         self.elements_set_enabled_signal = elements_set_enabled_signal
         self.progress_bar_set_value_signal = progress_bar_set_value_signal
         self.progress_bar_set_maximum_signal = progress_bar_set_maximum_signal
-        self.lecture_building_done_signal = lecture_building_done_signal
+        self.lecture_copy_signal = lecture_copy_signal
         self.label_device_signal = label_device_signal
         self.label_time_left_signal = label_time_left_signal
 
@@ -85,7 +85,7 @@ class LectureBuilder:
                                 self.audio_bytes_total += file_size
 
         # Find screenshots
-        screenshots_dir = lecture_directory + '/' + str(self.settings['screenshots_directory_name']) + '/'
+        screenshots_dir = os.path.join(lecture_directory, str(self.settings['screenshots_directory_name']))
         if os.path.exists(screenshots_dir):
             for file in os.listdir(screenshots_dir):
                 dir_or_file = os.path.join(screenshots_dir, file)
@@ -224,7 +224,8 @@ class LectureBuilder:
                 self.write_to_docx(words, timestamps_end, confidences_percents)
 
                 # Done
-                self.lecture_building_done_signal.emit(self.lecture_name)
+                self.lecture_copy_signal.emit(os.path.join(self.settings['lectures_directory_name'],
+                                                           self.lecture_name + '.docx'))
 
             # No words
             else:
@@ -291,7 +292,7 @@ class LectureBuilder:
                 document.add_paragraph('')
 
                 # Append screenshot
-                document.add_picture(str(current_screenshot[1]).replace('\\', '/'), width=Inches(
+                document.add_picture(os.path.normpath(str(current_screenshot[1])), width=Inches(
                     float(self.settings['lecture_picture_width_inches'])))
 
                 # Get next screenshot
@@ -330,15 +331,15 @@ class LectureBuilder:
             document.add_paragraph('')
 
             # Append screenshot
-            document.add_picture(str(current_screenshot[1]).replace('\\', '/'), width=Inches(
+            document.add_picture(os.path.normpath(str(current_screenshot[1])), width=Inches(
                 float(self.settings['lecture_picture_width_inches'])))
 
         # Create lectures directory
-        lectures_dir = str(self.settings['lectures_directory_name']) + '/'
+        lectures_dir = str(self.settings['lectures_directory_name'])
         if not os.path.exists(lectures_dir):
             os.makedirs(lectures_dir)
 
         # Save lecture
-        lecture_file = lectures_dir + self.lecture_name + '.docx'
+        lecture_file = os.path.join(lectures_dir, self.lecture_name + '.docx')
         logging.info('Saving lecture as: ' + lecture_file)
         document.save(lecture_file)
