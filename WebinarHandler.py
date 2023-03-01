@@ -394,6 +394,12 @@ class WebinarHandler:
                             # Push to preview
                             get_updater().call_latest(self.preview_label.setPixmap, pixmap)
 
+                    # No streams
+                    else:
+                        # Clear preview image
+                        get_updater().call_latest(self.preview_label.clear)
+                        get_updater().call_latest(self.preview_label.setText, 'No image')
+
             # Error
             except Exception as e:
                 logging.warning(e)

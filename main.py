@@ -34,7 +34,7 @@ import LectureBuilder
 import VideoAudioReader
 import WebinarHandler
 
-WEBINAR_HACKER_VERSION = 'beta_3.0.0'
+WEBINAR_HACKER_VERSION = 'beta_3.0.1'
 WEBINAR_HACKER_VERSION_CHECK_URL = 'https://api.github.com/repos/F33RNI/Webinar-Hacker/releases/latest'
 WEBINAR_HACKER_URL = 'https://github.com/F33RNI/Webinar-hacker'
 
@@ -292,8 +292,13 @@ class Window(QMainWindow):
         Stop button callback
         :return:
         """
+        # Stop file and webinar handlers
         self.stop_video_audio_decoding()
         self.stop_browser(True)
+
+        # Clear preview image
+        self.preview_label.clear()
+        self.preview_label.setText('No image')
 
     def links_to_settings(self):
         """
