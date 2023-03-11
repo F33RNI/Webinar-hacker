@@ -2,7 +2,7 @@
 ## Автоматическая запись и транскрибирование лекций из платформы Webinar / Zoom или стороннего видео/аудио
 <div style="width:100%;text-align:center;">
     <p align="center">
-        <a href="https://github.com/F33RNI/Webinar-hacker/releases"><img alt="Download release" src="https://img.shields.io/badge/-Download%20latest-yellowgreen?style=for-the-badge&logo=github" ></a>
+        <a href="https://github.com/F33RNI/Webinar-hacker/releases/latest"><img alt="Download release" src="https://img.shields.io/badge/-Download%20latest-yellowgreen?style=for-the-badge&logo=github" width="auto" height="50"></a>
     </p>
     <p align="center">
         <a href="https://www.youtube.com/@F3RNI"><img alt="YouTube" src="https://img.shields.io/badge/-YouTube-red" ></a>
