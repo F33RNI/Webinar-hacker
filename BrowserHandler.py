@@ -250,9 +250,23 @@ class BrowserHandler:
 
                 # Zoom handlers
                 elif self.link_type == LINK_TYPE_ZOOM:
-                    # Finished
-                    if len(self.browser.find_elements(By.CLASS_NAME, 'zm-modal-body-title')) > 0 \
-                            or len(self.browser.find_elements(By.CLASS_NAME, 'zm-modal2-body-title')) > 0:
+                    # Finished?
+                    is_finished = False
+                    zm_modal_body_titles = self.browser.find_elements(By.CLASS_NAME, 'zm-modal-body-title')
+                    zm_modal2_body_titles = self.browser.find_elements(By.CLASS_NAME, 'zm-modal2-body-title')
+                    feedback_wrap_hideme_rows = self.browser.find_elements(By.CLASS_NAME, 'feedback-wrap hideme row')
+                    error_messages = self.browser.find_elements(By.CLASS_NAME, 'error-message')
+                    if len(zm_modal_body_titles) > 0:
+                        html_ = str(zm_modal_body_titles[0].get_attribute('innerHTML')).lower()
+                        if 'ended' in html_ or 'finished' in html_ or 'завершен' in html_:
+                            is_finished = True
+                    if len(zm_modal2_body_titles) > 0:
+                        html_ = str(zm_modal2_body_titles[0].get_attribute('innerHTML')).lower()
+                        if 'ended' in html_ or 'finished' in html_ or 'завершен' in html_:
+                            is_finished = True
+                    if len(feedback_wrap_hideme_rows) > 0 or len(error_messages) > 0:
+                        is_finished = True
+                    if is_finished:
                         logging.warning('Event finished! Closing browser...')
                         if self.browser is not None:
                             self.stop_browser_and_recording.emit(True)
@@ -263,6 +277,14 @@ class BrowserHandler:
                                                                             'zm-btn join-audio-by-voip__join-btn')
                     if len(join_audio_by_voip_buttons) > 0:
                         join_audio_by_voip_buttons[0].click()
+
+                    # Click OK on all zm modals
+                    zm_modals = self.browser.find_elements(By.CLASS_NAME, 'zm-modal')
+                    for zm_modal in zm_modals:
+                        zm_modal_buttons = zm_modal.find_elements(By.TAG_NAME, 'button')
+                        for zm_modal_button in zm_modal_buttons:
+                            logging.info('Clicking on modal window button')
+                            zm_modal_button.click()
 
                 ###############
                 # Login stage #

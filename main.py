@@ -22,6 +22,7 @@ import os
 import shutil
 import signal
 import sys
+import webbrowser
 
 import psutil
 import requests
@@ -34,9 +35,9 @@ import BrowserHandler
 import LectureBuilder
 import VideoAudioReader
 
-WEBINAR_HACKER_VERSION = 'beta_4.0.1'
+WEBINAR_HACKER_VERSION = 'beta_4.0.4'
 WEBINAR_HACKER_VERSION_CHECK_URL = 'https://api.github.com/repos/F33RNI/Webinar-Hacker/releases/latest'
-WEBINAR_HACKER_URL = 'https://github.com/F33RNI/Webinar-hacker'
+WEBINAR_HACKER_URL = 'https://github.com/F33RNI/Webinar-hacker/releases/latest'
 
 LOGGING_LEVEL = logging.INFO
 
@@ -276,9 +277,24 @@ class Window(QMainWindow):
                 # Check version
                 tag_name = request_result.json()['tag_name']
                 if tag_name is not None and len(tag_name) > 1 and tag_name != WEBINAR_HACKER_VERSION:
+                    # Get changelog
+                    changelog = ''
+                    try:
+                        changelog_raw = str(request_result.json()['body'])
+                        changelog += changelog_raw.split('\r\n')[0].replace('#', '').strip()
+                        changelog += '\n\n' + '\n'.join(changelog_raw.split('\r\n')[3:-2]).strip()
+                    except:
+                        pass
+
                     # Show update message
                     QMessageBox.information(self, 'New version available', 'Please download new version: '
-                                            + tag_name + '\n' + WEBINAR_HACKER_URL)
+                                            + tag_name + '\n' + WEBINAR_HACKER_URL + '\n\nChangelog:\n' + changelog)
+
+                    # Open download page
+                    try:
+                        webbrowser.open(WEBINAR_HACKER_URL)
+                    except:
+                        pass
 
             except Exception as e:
                 logging.warning(e)
@@ -647,7 +663,7 @@ class Window(QMainWindow):
                             logging.info('Reconnecting...')
                             self.reconnects_counters[i][str(self.current_link_index)] = reconnected_times + 1
                             self.start_browser(False)
-                        return
+                            return
             else:
                 logging.info('Reconnects disabled!')
 
