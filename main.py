@@ -34,7 +34,7 @@ import BrowserHandler
 import LectureBuilder
 import VideoAudioReader
 
-WEBINAR_HACKER_VERSION = 'beta_4.0.0'
+WEBINAR_HACKER_VERSION = 'beta_4.0.1'
 WEBINAR_HACKER_VERSION_CHECK_URL = 'https://api.github.com/repos/F33RNI/Webinar-Hacker/releases/latest'
 WEBINAR_HACKER_URL = 'https://github.com/F33RNI/Webinar-hacker'
 

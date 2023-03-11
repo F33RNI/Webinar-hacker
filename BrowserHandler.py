@@ -211,7 +211,8 @@ class BrowserHandler:
 
                 # Check if timed out
                 timed_out = False
-                if time_passed > int(self.settings['gui_max_event_time_milliseconds']) > 0:
+                if self.settings['gui_max_event_time_enabled'] and \
+                        time_passed > int(self.settings['gui_max_event_time_milliseconds']) > 0:
                     logging.info('Timeout!')
                     timed_out = True
 
