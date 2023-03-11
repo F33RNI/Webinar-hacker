@@ -26,15 +26,15 @@ import sys
 import psutil
 import requests
 from PyQt5 import uic, QtGui, QtCore
-from PyQt5.QtWidgets import QApplication, QMainWindow, QMessageBox, QVBoxLayout, QLineEdit, QPushButton, QWidget, \
+from PyQt5.QtWidgets import QApplication, QMainWindow, QMessageBox, QLineEdit, QPushButton, QWidget, \
     QHBoxLayout, QFileDialog
 
 import AudioHandler
+import BrowserHandler
 import LectureBuilder
 import VideoAudioReader
-import WebinarHandler
 
-WEBINAR_HACKER_VERSION = 'beta_3.0.2'
+WEBINAR_HACKER_VERSION = 'beta_4.0.0'
 WEBINAR_HACKER_VERSION_CHECK_URL = 'https://api.github.com/repos/F33RNI/Webinar-Hacker/releases/latest'
 WEBINAR_HACKER_URL = 'https://github.com/F33RNI/Webinar-hacker'
 
@@ -109,7 +109,7 @@ def exit_(signum, frame):
 
 
 class Window(QMainWindow):
-    stop_browser_and_recording = QtCore.pyqtSignal()  # QtCore.Signal()
+    stop_browser_and_recording = QtCore.pyqtSignal(bool)  # QtCore.Signal()
     elements_set_enabled_signal = QtCore.pyqtSignal(bool)  # QtCore.Signal(bool)
     progress_bar_audio_signal = QtCore.pyqtSignal(int)  # QtCore.Signal(int)
     progress_bar_set_value_signal = QtCore.pyqtSignal(int)  # QtCore.Signal(int)
@@ -135,7 +135,7 @@ class Window(QMainWindow):
             self.setStyleSheet(stylesheet_file.read())
 
         # Connect signals
-        self.stop_browser_and_recording.connect(lambda: self.stop_browser(False))
+        self.stop_browser_and_recording.connect(lambda from_zoom: self.stop_browser(False, from_zoom=from_zoom))
         self.elements_set_enabled_signal.connect(self.elements_set_enabled)
         self.progress_bar_audio_signal.connect(self.progressBar_audio.setValue)
         self.progress_bar_set_value_signal.connect(self.progressBar.setValue)
@@ -152,7 +152,7 @@ class Window(QMainWindow):
         # Initialize classes
         self.audio_handler = AudioHandler.AudioHandler(self.settings, self.progress_bar_audio_signal,
                                                        self.label_rec_set_stylesheet_signal)
-        self.webinar_handler = WebinarHandler.WebinarHandler(self.audio_handler, self.settings,
+        self.webinar_handler = BrowserHandler.BrowserHandler(self.audio_handler, self.settings,
                                                              self.stop_browser_and_recording, self.preview_label,
                                                              self.label_current_link_time_signal)
         self.video_audio_reader = VideoAudioReader.VideoAudioReader(self.settings, self.audio_handler,
@@ -179,6 +179,9 @@ class Window(QMainWindow):
         # Additional links
         self.additional_links = []
         self.additional_links_widgets = []
+
+        # Link reconnects counter (for zoom)
+        self.reconnects_counters = []
 
         # Multiple links indexes
         self.current_link_index = 0
@@ -207,6 +210,8 @@ class Window(QMainWindow):
         self.check_box_max_link_time.setChecked(self.settings['gui_max_event_time_enabled'])
         self.spin_box_time_hours.setValue(int(gui_max_event_time / 60))
         self.spin_box_time_minutes.setValue(int(gui_max_event_time % 60))
+        self.check_box_zoom_reconnect.setChecked(self.settings['gui_zoom_reconnects_enabled'])
+        self.spin_box_zoom_max_reconnects.setValue(int(self.settings['gui_zoom_reconnects_max']))
         self.slider_audio_threshold.setValue(int(self.settings['gui_audio_threshold_dbfs']))
         self.label_audio_threshold.setText(str(int(self.settings['gui_audio_threshold_dbfs'])) + ' dBFS')
         self.line_edit_videoaudio.setText(str(self.settings['gui_video_audio_file']))
@@ -223,6 +228,8 @@ class Window(QMainWindow):
         self.check_box_max_link_time.clicked.connect(self.update_settings)
         self.spin_box_time_hours.valueChanged.connect(self.update_settings)
         self.spin_box_time_minutes.valueChanged.connect(self.update_settings)
+        self.check_box_zoom_reconnect.clicked.connect(self.update_settings)
+        self.spin_box_zoom_max_reconnects.valueChanged.connect(self.update_settings)
         self.line_edit_videoaudio.textChanged.connect(self.update_settings)
         self.tabWidget.currentChanged.connect(self.update_settings)
 
@@ -247,6 +254,8 @@ class Window(QMainWindow):
         self.settings['gui_max_event_time_enabled'] = self.check_box_max_link_time.isChecked()
         self.settings['gui_max_event_time_milliseconds'] = (int(self.spin_box_time_hours.value()) * 60
                                                             + int(self.spin_box_time_minutes.value())) * 60 * 1000
+        self.settings['gui_zoom_reconnects_enabled'] = self.check_box_zoom_reconnect.isChecked()
+        self.settings['gui_zoom_reconnects_max'] = int(self.spin_box_zoom_max_reconnects.value())
         self.settings['gui_audio_threshold_dbfs'] = int(self.slider_audio_threshold.value())
         self.label_audio_threshold.setText(str(int(self.slider_audio_threshold.value())) + ' dBFS')
         self.settings['gui_video_audio_file'] = str(self.line_edit_videoaudio.text())
@@ -560,6 +569,7 @@ class Window(QMainWindow):
                 self.elements_set_enabled(True, ENABLE_DISABLE_GUI_FROM_BROWSER)
                 return
 
+            # Get username
             user_name = str(self.settings['gui_name']).strip()
 
             # Check link and username
@@ -579,6 +589,15 @@ class Window(QMainWindow):
                         start_allowed = True
 
                 if start_allowed:
+                    # Add reconnect timer if not exists
+                    counter_exists = False
+                    for reconnect_counter in self.reconnects_counters:
+                        if str(self.current_link_index) in reconnect_counter:
+                            counter_exists = True
+                            break
+                    if not counter_exists:
+                        self.reconnects_counters.append({str(self.current_link_index): 0})
+
                     # Open audio stream
                     if self.settings['gui_recording_enabled']:
                         self.audio_handler.open_stream()
@@ -596,11 +615,12 @@ class Window(QMainWindow):
             QMessageBox.critical(self, 'Error', 'Error starting browser and other staff\n' + str(e)
                                  + '\nTry turning off recording.')
 
-    def stop_browser(self, from_button: bool):
+    def stop_browser(self, from_button: bool, from_zoom=False):
         """
         Stops recording and closes browser
         :return:
         :param from_button: True if button clicked false if automation
+        :param from_zoom: will reconnect to the same link if needed
         """
         # Stop recording
         self.audio_handler.recording_stop()
@@ -615,6 +635,21 @@ class Window(QMainWindow):
 
         # Refresh lectures
         self.lectures_refresh()
+
+        # Reconnect for zoom
+        if from_zoom:
+            if self.settings['gui_zoom_reconnects_enabled']:
+                for i in range(len(self.reconnects_counters)):
+                    if str(self.current_link_index) in self.reconnects_counters[i]:
+                        reconnected_times = self.reconnects_counters[i][str(self.current_link_index)]
+                        logging.info('Reconnected: ' + str(reconnected_times) + ' times')
+                        if reconnected_times < int(self.settings['gui_zoom_reconnects_max']):
+                            logging.info('Reconnecting...')
+                            self.reconnects_counters[i][str(self.current_link_index)] = reconnected_times + 1
+                            self.start_browser(False)
+                        return
+            else:
+                logging.info('Reconnects disabled!')
 
         # Next link
         if not from_button and self.current_link_index <= len(self.settings['gui_links']):
@@ -659,6 +694,8 @@ class Window(QMainWindow):
             self.check_box_max_link_time.setEnabled(enabled)
             self.spin_box_time_hours.setEnabled(enabled)
             self.spin_box_time_minutes.setEnabled(enabled)
+            self.check_box_zoom_reconnect.setEnabled(enabled)
+            self.spin_box_zoom_max_reconnects.setEnabled(enabled)
             self.slider_audio_threshold.setEnabled(enabled)
             self.btn_stop.setEnabled(False)
 
@@ -667,6 +704,8 @@ class Window(QMainWindow):
             self.check_box_max_link_time.setEnabled(True)
             self.spin_box_time_hours.setEnabled(True)
             self.spin_box_time_minutes.setEnabled(True)
+            self.check_box_zoom_reconnect.setEnabled(True)
+            self.spin_box_zoom_max_reconnects.setEnabled(True)
             self.slider_audio_threshold.setEnabled(True)
             self.btn_stop.setEnabled(not enabled)
 
@@ -675,6 +714,8 @@ class Window(QMainWindow):
             self.check_box_max_link_time.setEnabled(enabled)
             self.spin_box_time_hours.setEnabled(enabled)
             self.spin_box_time_minutes.setEnabled(enabled)
+            self.check_box_zoom_reconnect.setEnabled(enabled)
+            self.spin_box_zoom_max_reconnects.setEnabled(enabled)
             self.slider_audio_threshold.setEnabled(True)
             self.btn_stop.setEnabled(not enabled)
 

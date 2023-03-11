@@ -23,7 +23,7 @@ import time
 from docx import Document
 from docx.shared import Inches, RGBColor, Pt
 
-from WebinarHandler import SCREENSHOT_EXTENSION
+from BrowserHandler import SCREENSHOT_EXTENSION
 
 WAVE_FILE_SIZE_MIN_BYTES = 100
 

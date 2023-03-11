@@ -26,7 +26,7 @@ from PyQt5.QtGui import QPixmap, QImage
 from qt_thread_updater import get_updater
 
 from AudioHandler import WAVE_FILE_EXTENSION
-from WebinarHandler import SAVING_TEXT_COLOR, resize_keep_ratio, SCREENSHOT_EXTENSION
+from BrowserHandler import SAVING_TEXT_COLOR, resize_keep_ratio, SCREENSHOT_EXTENSION
 
 
 class VideoAudioReader:
